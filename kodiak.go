@@ -172,6 +172,9 @@ func (k *KodiakLPPriceProvider) TVL(ctx context.Context, client *ethclient.Clien
 	amount1Decimal := decimal.NewFromBigInt(amount1, 0)
 	totalValue := amount0Decimal.Mul(k.tokenPrices[0]).Add(amount1Decimal.Mul(k.tokenPrices[1]))
 
+	// Divide by 1e18 to normalize the value
+	totalValue = totalValue.Div(decimal.NewFromInt(1e18))
+
 	// Convert to USD cents
 	totalValueInCents := totalValue.Mul(decimal.NewFromInt(100)).Round(0).BigInt()
 
