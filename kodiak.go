@@ -31,7 +31,7 @@ func NewKodiakLPPriceProvider(address common.Address, prices [2]decimal.Decimal,
 	}
 }
 
-// Initialize loads the ABI file and prepares the provider.
+// Initialize instantiates the KodiakV1 smart contract.
 func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
 	k.logger.Info().Msg("Initializing KodiakLPPriceProvider")
 	var err error
@@ -58,7 +58,7 @@ func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context, client *ethc
 	return ts, err
 }
 
-// getUnderlyingBalances fetches the current token balances.
+// getUnderlyingBalances fetches the underlying token balances.
 func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context, client *ethclient.Client) (amount0, amount1 *big.Int, err error) {
 	opts := &bind.CallOpts{
 		Pending: false,
@@ -137,8 +137,6 @@ func (k *KodiakLPPriceProvider) TVL(ctx context.Context, client *ethclient.Clien
 	totalValueInCents := totalValue.Mul(decimal.NewFromInt(100)).Round(0).BigInt()
 
 	k.logger.Info().
-		Str("amount0Current", amount0Decimal.String()).
-		Str("amount1Current", amount1Decimal.String()).
 		Str("totalValue", totalValue.String()).
 		Msg("TVL calculated successfully")
 
