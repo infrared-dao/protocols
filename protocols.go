@@ -7,7 +7,7 @@ import (
 )
 
 // Version information
-const Version = "0.1.0"
+const Version = "0.1.1"
 
 // Protocol defines methods for querying DeFi protocol metrics.
 // Implementations must be safe for concurrent use.
