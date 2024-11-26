@@ -21,7 +21,6 @@ func main() {
 
 	// Command-line arguments
 	addressArg := flag.String("address", "", "Smart contract address")
-	abiPathArg := flag.String("abipath", "", "Path to the ABI file")
 	price0Arg := flag.String("price0", "", "Price of token 0")
 	price1Arg := flag.String("price1", "", "Price of token 1")
 	rpcURLArg := flag.String("rpcurl", "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID", "Ethereum RPC URL")
@@ -31,9 +30,6 @@ func main() {
 	missingArgs := []string{}
 	if *addressArg == "" {
 		missingArgs = append(missingArgs, "address")
-	}
-	if *abiPathArg == "" {
-		missingArgs = append(missingArgs, "abipath")
 	}
 	if *price0Arg == "" {
 		missingArgs = append(missingArgs, "price0")
@@ -63,7 +59,7 @@ func main() {
 	address := common.HexToAddress(*addressArg)
 
 	// Create a new KodiakLPPriceProvider
-	provider := protocols.NewKodiakLPPriceProvider(address, *abiPathArg, [2]decimal.Decimal{price0, price1}, logger)
+	provider := protocols.NewKodiakLPPriceProvider(address, [2]decimal.Decimal{price0, price1}, logger)
 
 	// Connect to the Ethereum client
 	client, err := ethclient.Dial(*rpcURLArg)
