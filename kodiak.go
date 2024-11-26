@@ -61,7 +61,7 @@ func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, e
 }
 
 // getUnderlyingBalances fetches the underlying token balances.
-func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (amount0, amount1 *big.Int, err error) {
+func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
 		Pending: false,
 		Context: ctx,
