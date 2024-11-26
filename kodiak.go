@@ -3,7 +3,9 @@ package protocols
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -17,12 +19,12 @@ import (
 type KodiakLPPriceProvider struct {
 	address     common.Address
 	logger      zerolog.Logger
-	tokenPrices [2]decimal.Decimal // Prices of the two underlying tokens
+	tokenPrices map[string]decimal.Decimal // Prices of the two underlying tokens
 	contract    *sc.KodiakV1
 }
 
 // NewKodiakLPPriceProvider creates a new instance of the KodiakLPPriceProvider.
-func NewKodiakLPPriceProvider(address common.Address, prices [2]decimal.Decimal, logger zerolog.Logger) *KodiakLPPriceProvider {
+func NewKodiakLPPriceProvider(address common.Address, prices map[string]decimal.Decimal, logger zerolog.Logger) *KodiakLPPriceProvider {
 	return &KodiakLPPriceProvider{
 		address:     address,
 		logger:      logger,
@@ -44,7 +46,7 @@ func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclien
 }
 
 // getTotalSupply fetches the total supply of the LP token.
-func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context, client *ethclient.Client) (*big.Int, error) {
+func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
 		Pending: false,
 		Context: ctx,
@@ -59,7 +61,7 @@ func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context, client *ethc
 }
 
 // getUnderlyingBalances fetches the underlying token balances.
-func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context, client *ethclient.Client) (amount0, amount1 *big.Int, err error) {
+func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
 		Pending: false,
 		Context: ctx,
@@ -72,12 +74,46 @@ func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context, clien
 	return ubs.Amount0Current, ubs.Amount1Current, err
 }
 
+// getTokenPrices gets the underlying token prices.
+func (k *KodiakLPPriceProvider) getTokenPrices(ctx context.Context) ([]decimal.Decimal, error) {
+	opts := &bind.CallOpts{
+		Pending: false,
+		Context: ctx,
+	}
+	t0a, err := k.contract.Token0(opts)
+	if err != nil {
+		k.logger.Error().Msgf("failed to obtain token0 address for kodiak vault %s, %v", k.address.String(), err)
+		return nil, err
+	}
+	price, ok := k.tokenPrices[strings.ToLower(t0a.Hex())]
+	if !ok {
+		err = fmt.Errorf("no price for token0, %v", t0a.Hex())
+		k.logger.Error().Msg(err.Error())
+		return nil, err
+	}
+	var prices []decimal.Decimal
+	prices = append(prices, price)
+	t1a, err := k.contract.Token1(opts)
+	if err != nil {
+		k.logger.Error().Msgf("failed to obtain token1 address for kodiak vault %s, %v", k.address.String(), err)
+		return nil, err
+	}
+	price, ok = k.tokenPrices[strings.ToLower(t1a.Hex())]
+	if !ok {
+		err = fmt.Errorf("no price for token1, %v", t1a.Hex())
+		k.logger.Error().Msg(err.Error())
+		return nil, err
+	}
+	prices = append(prices, price)
+	return prices, err
+}
+
 // LPTokenPrice returns the current price of the protocol's LP token in USD cents (1 USD = 100 cents).
-func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context, client *ethclient.Client) (uint64, error) {
+func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (uint64, error) {
 	k.logger.Info().Msg("Calculating LP token price")
 
 	// Fetch total supply
-	totalSupply, err := k.getTotalSupply(ctx, client)
+	totalSupply, err := k.getTotalSupply(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -90,7 +126,7 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context, client *ethcli
 	}
 
 	// Fetch underlying balances
-	amount0, amount1, err := k.getUnderlyingBalances(ctx, client)
+	amount0, amount1, err := k.getUnderlyingBalances(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -98,7 +134,12 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context, client *ethcli
 	// Calculate total value in USD using token prices
 	amount0Decimal := decimal.NewFromBigInt(amount0, 0)
 	amount1Decimal := decimal.NewFromBigInt(amount1, 0)
-	totalValue := amount0Decimal.Mul(k.tokenPrices[0]).Add(amount1Decimal.Mul(k.tokenPrices[1]))
+
+	tokenPrices, err := k.getTokenPrices(ctx)
+	if err != nil {
+		return 0, err
+	}
+	totalValue := amount0Decimal.Mul(tokenPrices[0]).Add(amount1Decimal.Mul(tokenPrices[1]))
 
 	// Calculate price per LP token
 	totalSupplyDecimal := decimal.NewFromBigInt(totalSupply, 0)
@@ -117,11 +158,11 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context, client *ethcli
 }
 
 // TVL returns the Total Value Locked in the protocol in USD cents (1 USD = 100 cents).
-func (k *KodiakLPPriceProvider) TVL(ctx context.Context, client *ethclient.Client) (uint64, error) {
+func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (uint64, error) {
 	k.logger.Info().Msg("Calculating TVL")
 
 	// Fetch underlying balances
-	amount0, amount1, err := k.getUnderlyingBalances(ctx, client)
+	amount0, amount1, err := k.getUnderlyingBalances(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -129,7 +170,12 @@ func (k *KodiakLPPriceProvider) TVL(ctx context.Context, client *ethclient.Clien
 	// Calculate total value in USD using token prices
 	amount0Decimal := decimal.NewFromBigInt(amount0, 0)
 	amount1Decimal := decimal.NewFromBigInt(amount1, 0)
-	totalValue := amount0Decimal.Mul(k.tokenPrices[0]).Add(amount1Decimal.Mul(k.tokenPrices[1]))
+
+	tokenPrices, err := k.getTokenPrices(ctx)
+	if err != nil {
+		return 0, err
+	}
+	totalValue := amount0Decimal.Mul(tokenPrices[0]).Add(amount1Decimal.Mul(tokenPrices[1]))
 
 	// Divide by 1e18 to normalize the value
 	totalValue = totalValue.Div(decimal.NewFromInt(1e18))

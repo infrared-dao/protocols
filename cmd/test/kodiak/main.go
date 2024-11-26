@@ -4,12 +4,14 @@ import (
 	"context"
 	"flag"
 	"os"
+	"strings"
 
 	"github.com/infrared-dao/protocols"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 )
 
@@ -21,8 +23,8 @@ func main() {
 
 	// Command-line arguments
 	addressArg := flag.String("address", "", "Smart contract address")
-	price0Arg := flag.String("price0", "", "Price of token 0")
-	price1Arg := flag.String("price1", "", "Price of token 1")
+	price0Arg := flag.String("price0", "", "address/price of token 0, colon delimited")
+	price1Arg := flag.String("price1", "", "address/price of token 1, colon delimited")
 	rpcURLArg := flag.String("rpcurl", "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID", "Ethereum RPC URL")
 	flag.Parse()
 
@@ -45,21 +47,33 @@ func main() {
 	}
 
 	// Parse prices
-	price0, err := decimal.NewFromString(*price0Arg)
+	p0data := strings.Split(*price0Arg, ":")
+	if len(p0data) != 2 {
+		logger.Fatal().Msgf("Invalid price0, '%s'", *price0Arg)
+	}
+	price0, err := decimal.NewFromString(p0data[1])
 	if err != nil {
 		logger.Fatal().Err(err).Str("price0", *price0Arg).Msg("Invalid price0")
 	}
-
-	price1, err := decimal.NewFromString(*price1Arg)
+	p1data := strings.Split(*price1Arg, ":")
+	if len(p1data) != 2 {
+		logger.Fatal().Msgf("Invalid price1, '%s'", *price1Arg)
+	}
+	price1, err := decimal.NewFromString(p1data[1])
 	if err != nil {
 		logger.Fatal().Err(err).Str("price1", *price1Arg).Msg("Invalid price1")
 	}
 
+	pmap := map[string]decimal.Decimal{
+		strings.ToLower(p0data[0]): price0,
+		strings.ToLower(p1data[0]): price1,
+	}
+	log.Info().Msgf("%#v", pmap)
 	// Parse the smart contract address
 	address := common.HexToAddress(*addressArg)
 
 	// Create a new KodiakLPPriceProvider
-	provider := protocols.NewKodiakLPPriceProvider(address, [2]decimal.Decimal{price0, price1}, logger)
+	provider := protocols.NewKodiakLPPriceProvider(address, pmap, logger)
 
 	// Connect to the Ethereum client
 	client, err := ethclient.Dial(*rpcURLArg)
@@ -75,7 +89,7 @@ func main() {
 	}
 
 	// Fetch LP token price
-	lpPrice, err := provider.LPTokenPrice(ctx, client)
+	lpPrice, err := provider.LPTokenPrice(ctx)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to fetch LP token price")
 	} else {
@@ -85,7 +99,7 @@ func main() {
 	}
 
 	// Fetch TVL
-	tvl, err := provider.TVL(ctx, client)
+	tvl, err := provider.TVL(ctx)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to fetch TVL")
 	} else {

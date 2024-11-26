@@ -4,8 +4,6 @@ package protocols
 
 import (
 	"context"
-
-	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 // Version information
@@ -17,10 +15,10 @@ type Protocol interface {
 	// LPTokenPrice returns the current price of the protocol's LP token
 	// in USD cents (1 USD = 100 cents).
 	// Returns an error if the price cannot be determined.
-	LPTokenPrice(ctx context.Context, client *ethclient.Client) (uint64, error)
+	LPTokenPrice(ctx context.Context) (uint64, error)
 
 	// TVL returns the Total Value Locked in the protocol in USD cents
 	// (1 USD = 100 cents).
 	// Returns an error if the TVL cannot be determined.
-	TVL(ctx context.Context, client *ethclient.Client) (uint64, error)
+	TVL(ctx context.Context) (uint64, error)
 }
