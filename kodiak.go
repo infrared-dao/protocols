@@ -108,6 +108,8 @@ func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context, clien
 		return nil, nil, err
 	}
 
+	k.logger.Info().Msgf("underlying balance 0: %v", amount0Result)
+	k.logger.Info().Msgf("underlying balance 1: %v", amount1Result)
 	return amount0Result, amount1Result, nil
 }
 
