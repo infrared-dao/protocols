@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 )
 
@@ -52,7 +51,7 @@ func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context, client *ethc
 	}
 	ts, err := k.contract.TotalSupply(opts)
 	if err != nil {
-		log.Error().Msgf("failed to obtain total supply for kodiak vault %s, %v", k.address.String(), err)
+		k.logger.Error().Msgf("failed to obtain total supply for kodiak vault %s, %v", k.address.String(), err)
 		return nil, err
 	}
 
@@ -67,7 +66,7 @@ func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context, clien
 	}
 	ubs, err := k.contract.GetUnderlyingBalances(opts)
 	if err != nil {
-		log.Error().Msgf("failed to obtain underlying balances for kodiak vault %s, %v", k.address.String(), err)
+		k.logger.Error().Msgf("failed to obtain underlying balances for kodiak vault %s, %v", k.address.String(), err)
 		return nil, nil, err
 	}
 	return ubs.Amount0Current, ubs.Amount1Current, err
