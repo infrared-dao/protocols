@@ -2,7 +2,11 @@ module github.com/infrared-dao/protocols
 
 go 1.23.2
 
-require github.com/ethereum/go-ethereum v1.14.12
+require (
+	github.com/ethereum/go-ethereum v1.14.12
+	github.com/rs/zerolog v1.33.0
+	github.com/shopspring/decimal v1.4.0
+)
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -16,9 +20,13 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/ethereum/c-kzg-4844 v1.0.0 // indirect
 	github.com/ethereum/go-verkle v0.1.1-0.20240829091221-dffa7562dbe9 // indirect
+	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/holiman/uint256 v1.3.1 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
 	github.com/supranational/blst v0.3.13 // indirect
