@@ -17,7 +17,6 @@ func main() {
 	// Create a zerolog logger
 	logger := zerolog.New(os.Stdout).With().
 		Timestamp().
-		Str("component", "KodiakLPTest").
 		Logger()
 
 	// Command-line arguments
