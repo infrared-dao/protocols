@@ -4,31 +4,28 @@ import (
 	"context"
 	"errors"
 	"math/big"
-	"os"
-	"strings"
 
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 )
 
 // KodiakLPPriceProvider defines the provider for Kodiak LP price and TVL.
 type KodiakLPPriceProvider struct {
 	address     common.Address
-	abiPath     string
-	abi         abi.ABI
 	logger      zerolog.Logger
 	tokenPrices [2]decimal.Decimal // Prices of the two underlying tokens
+	contract    *sc.KodiakV1
 }
 
 // NewKodiakLPPriceProvider creates a new instance of the KodiakLPPriceProvider.
 func NewKodiakLPPriceProvider(address common.Address, abiPath string, prices [2]decimal.Decimal, logger zerolog.Logger) *KodiakLPPriceProvider {
 	return &KodiakLPPriceProvider{
 		address:     address,
-		abiPath:     abiPath,
 		logger:      logger,
 		tokenPrices: prices,
 	}
@@ -37,80 +34,41 @@ func NewKodiakLPPriceProvider(address common.Address, abiPath string, prices [2]
 // Initialize loads the ABI file and prepares the provider.
 func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
 	k.logger.Info().Msg("Initializing KodiakLPPriceProvider")
+	var err error
 
-	// Load ABI file
-	abiData, err := os.ReadFile(k.abiPath)
+	k.contract, err = sc.NewKodiakV1(k.address, client)
 	if err != nil {
-		k.logger.Error().Err(err).Msg("Failed to read ABI file")
+		k.logger.Error().Err(err).Msg("failed to instatiate KodiakV1 smart contract")
 		return err
 	}
-
-	// Parse ABI
-	parsedABI, err := abi.JSON(strings.NewReader(string(abiData)))
-	if err != nil {
-		k.logger.Error().Err(err).Msg("Failed to parse ABI")
-		return err
-	}
-
-	k.abi = parsedABI
-	k.logger.Info().Msg("KodiakLPPriceProvider initialized successfully")
 	return nil
 }
 
 // getTotalSupply fetches the total supply of the LP token.
 func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context, client *ethclient.Client) (*big.Int, error) {
-	// Call totalSupply
-	totalSupplyData, err := k.abi.Pack("totalSupply")
+	opts := &bind.CallOpts{
+		Pending: false,
+	}
+	ts, err := k.contract.TotalSupply(opts)
 	if err != nil {
-		k.logger.Error().Err(err).Msg("Failed to pack totalSupply call")
+		log.Error().Msgf("failed to obtain total supply for kodiak vault %s, %v", k.address.String(), err)
 		return nil, err
 	}
 
-	totalSupplyRes, err := client.CallContract(ctx, ethereum.CallMsg{
-		To:   &k.address,
-		Data: totalSupplyData,
-	}, nil)
-	if err != nil {
-		k.logger.Error().Err(err).Msg("Failed to call totalSupply")
-		return nil, err
-	}
-
-	var totalSupply *big.Int
-	if err := k.abi.UnpackIntoInterface(&totalSupply, "totalSupply", totalSupplyRes); err != nil {
-		k.logger.Error().Err(err).Msg("Failed to unpack totalSupply result")
-		return nil, err
-	}
-
-	return totalSupply, nil
+	return ts, err
 }
 
 // getUnderlyingBalances fetches the current token balances.
 func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context, client *ethclient.Client) (amount0, amount1 *big.Int, err error) {
-	// Call getUnderlyingBalances
-	getUnderlyingBalancesData, err := k.abi.Pack("getUnderlyingBalances")
+	opts := &bind.CallOpts{
+		Pending: false,
+	}
+	ubs, err := k.contract.GetUnderlyingBalances(opts)
 	if err != nil {
-		k.logger.Error().Err(err).Msg("Failed to pack getUnderlyingBalances call")
+		log.Error().Msgf("failed to obtain underlying balances for kodiak vault %s, %v", k.address.String(), err)
 		return nil, nil, err
 	}
-
-	underlyingBalancesRes, err := client.CallContract(ctx, ethereum.CallMsg{
-		To:   &k.address,
-		Data: getUnderlyingBalancesData,
-	}, nil)
-	if err != nil {
-		k.logger.Error().Err(err).Msg("Failed to call getUnderlyingBalances")
-		return nil, nil, err
-	}
-
-	var amount0Result, amount1Result *big.Int
-	if err := k.abi.UnpackIntoInterface(&[]interface{}{&amount0Result, &amount1Result}, "getUnderlyingBalances", underlyingBalancesRes); err != nil {
-		k.logger.Error().Err(err).Msg("Failed to unpack getUnderlyingBalances result")
-		return nil, nil, err
-	}
-
-	k.logger.Info().Msgf("underlying balance 0: %v", amount0Result)
-	k.logger.Info().Msgf("underlying balance 1: %v", amount1Result)
-	return amount0Result, amount1Result, nil
+	return ubs.Amount0Current, ubs.Amount1Current, err
 }
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD cents (1 USD = 100 cents).
