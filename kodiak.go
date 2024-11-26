@@ -48,6 +48,7 @@ func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclien
 func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context, client *ethclient.Client) (*big.Int, error) {
 	opts := &bind.CallOpts{
 		Pending: false,
+		Context: ctx,
 	}
 	ts, err := k.contract.TotalSupply(opts)
 	if err != nil {
@@ -62,6 +63,7 @@ func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context, client *ethc
 func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context, client *ethclient.Client) (amount0, amount1 *big.Int, err error) {
 	opts := &bind.CallOpts{
 		Pending: false,
+		Context: ctx,
 	}
 	ubs, err := k.contract.GetUnderlyingBalances(opts)
 	if err != nil {
