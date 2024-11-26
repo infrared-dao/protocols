@@ -1,0 +1,87 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"os"
+
+	"github.com/infrared-dao/protocols"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
+)
+
+func main() {
+	// Create a zerolog logger
+	logger := zerolog.New(os.Stdout).With().
+		Timestamp().
+		Str("component", "KodiakLPTest").
+		Logger()
+
+	// Command-line arguments
+	addressArg := flag.String("address", "", "Smart contract address")
+	abiPathArg := flag.String("abipath", "", "Path to the ABI file")
+	price0Arg := flag.String("price0", "", "Price of token 0")
+	price1Arg := flag.String("price1", "", "Price of token 1")
+	rpcURLArg := flag.String("rpcurl", "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID", "Ethereum RPC URL")
+	flag.Parse()
+
+	// Validate required arguments
+	if *addressArg == "" || *abiPathArg == "" || *price0Arg == "" || *price1Arg == "" {
+		logger.Fatal().
+			Str("usage", "go run main.go -address <contract-address> -abipath <path-to-abi> -price0 <price0> -price1 <price1> -rpcurl <rpc-url>").
+			Msg("Missing required arguments")
+	}
+
+	// Parse prices
+	price0, err := decimal.NewFromString(*price0Arg)
+	if err != nil {
+		logger.Fatal().Err(err).Str("price0", *price0Arg).Msg("Invalid price0")
+	}
+
+	price1, err := decimal.NewFromString(*price1Arg)
+	if err != nil {
+		logger.Fatal().Err(err).Str("price1", *price1Arg).Msg("Invalid price1")
+	}
+
+	// Parse the smart contract address
+	address := common.HexToAddress(*addressArg)
+
+	// Create a new KodiakLPPriceProvider
+	provider := protocols.NewKodiakLPPriceProvider(address, *abiPathArg, [2]decimal.Decimal{price0, price1}, logger)
+
+	// Connect to the Ethereum client
+	client, err := ethclient.Dial(*rpcURLArg)
+	if err != nil {
+		logger.Fatal().Err(err).Str("rpcurl", *rpcURLArg).Msg("Failed to connect to Ethereum client")
+	}
+
+	// Initialize the provider
+	ctx := context.Background()
+	err = provider.Initialize(ctx, client)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to initialize KodiakLPPriceProvider")
+	}
+
+	// Fetch LP token price
+	lpPrice, err := provider.LPTokenPrice(ctx, client)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to fetch LP token price")
+	} else {
+		logger.Info().
+			Uint64("LPTokenPrice (USD cents)", lpPrice).
+			Msg("Successfully fetched LP token price")
+	}
+
+	// Fetch TVL
+	tvl, err := provider.TVL(ctx, client)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to fetch TVL")
+	} else {
+		logger.Info().
+			Uint64("TVL (USD cents)", tvl).
+			Msg("Successfully fetched TVL")
+	}
+}
