@@ -29,8 +29,22 @@ func main() {
 	flag.Parse()
 
 	// Validate required arguments
-	if *addressArg == "" || *abiPathArg == "" || *price0Arg == "" || *price1Arg == "" {
+	missingArgs := []string{}
+	if *addressArg == "" {
+		missingArgs = append(missingArgs, "address")
+	}
+	if *abiPathArg == "" {
+		missingArgs = append(missingArgs, "abipath")
+	}
+	if *price0Arg == "" {
+		missingArgs = append(missingArgs, "price0")
+	}
+	if *price1Arg == "" {
+		missingArgs = append(missingArgs, "price1")
+	}
+	if len(missingArgs) > 0 {
 		logger.Fatal().
+			Strs("missingArgs", missingArgs).
 			Str("usage", "go run main.go -address <contract-address> -abipath <path-to-abi> -price0 <price0> -price1 <price1> -rpcurl <rpc-url>").
 			Msg("Missing required arguments")
 	}
