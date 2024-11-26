@@ -76,7 +76,7 @@ func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context, client *ethc
 	}
 
 	var totalSupply *big.Int
-	if err := k.abi.UnpackIntoInterface(&[]interface{}{&totalSupply}, "totalSupply", totalSupplyRes); err != nil {
+	if err := k.abi.UnpackIntoInterface(&totalSupply, "totalSupply", totalSupplyRes); err != nil {
 		k.logger.Error().Err(err).Msg("Failed to unpack totalSupply result")
 		return nil, err
 	}
