@@ -3,6 +3,7 @@ package protocols
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -34,6 +35,11 @@ func NewKodiakLPPriceProvider(address common.Address, prices []decimal.Decimal, 
 func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
 	k.logger.Info().Msg("Initializing KodiakLPPriceProvider")
 	var err error
+	if len(k.tokenPrices) != 2 {
+		err = fmt.Errorf("invalid price array, should have 2 elements, got %d instead", len(k.tokenPrices))
+		k.logger.Error().Msg(err.Error())
+		return err
+	}
 
 	k.contract, err = sc.NewKodiakV1(k.address, client)
 	if err != nil {
@@ -75,6 +81,12 @@ func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big
 // LPTokenPrice returns the current price of the protocol's LP token in USD cents (1 USD = 100 cents).
 func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	k.logger.Info().Msg("Calculating LP token price")
+	var err error
+	if len(k.tokenPrices) != 2 {
+		err = fmt.Errorf("invalid price array, should have 2 elements, got %d instead", len(k.tokenPrices))
+		k.logger.Error().Msg(err.Error())
+		return "", err
+	}
 
 	// Fetch total supply
 	totalSupply, err := k.getTotalSupply(ctx)
@@ -95,6 +107,7 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 		return "", err
 	}
 
+	// TODO:use decimals provided by caller to calculate the correct price [Issue DEV-866] (@kuma)
 	// Calculate total value in USD using token prices
 	amount0Decimal := decimal.NewFromBigInt(amount0, 0)
 	amount1Decimal := decimal.NewFromBigInt(amount1, 0)
@@ -117,6 +130,12 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 // TVL returns the Total Value Locked in the protocol in USD cents (1 USD = 100 cents).
 func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	k.logger.Info().Msg("Calculating TVL")
+	var err error
+	if len(k.tokenPrices) != 2 {
+		err = fmt.Errorf("invalid price array, should have 2 elements, got %d instead", len(k.tokenPrices))
+		k.logger.Error().Msg(err.Error())
+		return "", err
+	}
 
 	// Fetch underlying balances
 	amount0, amount1, err := k.getUnderlyingBalances(ctx)
