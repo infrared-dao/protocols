@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"os"
 	"strings"
@@ -64,34 +63,31 @@ func main() {
 		logger.Fatal().Err(err).Str("price1", *price1Arg).Msg("Invalid price1")
 	}
 
-	kc := protocols.KodiakConfig{
-		Token0:      strings.ToLower(p0data[0]),
-		Token1:      strings.ToLower(p1data[0]),
-		LPTDecimals: 18,
-	}
-	configBytes, err := json.Marshal(kc)
-	if err != nil {
-		logger.Fatal().Msgf("Invalid config, %v", kc)
-	}
-
 	pmap := map[string]decimal.Decimal{
 		strings.ToLower(p0data[0]): price0,
 		strings.ToLower(p1data[0]): price1,
 	}
-	// Parse the smart contract address
-	address := common.HexToAddress(*addressArg)
 
-	// Create a new KodiakLPPriceProvider
-	provider := protocols.NewKodiakLPPriceProvider(address, pmap, logger, configBytes)
-
+	ctx := context.Background()
 	// Connect to the Ethereum client
 	client, err := ethclient.Dial(*rpcURLArg)
 	if err != nil {
 		logger.Fatal().Err(err).Str("rpcurl", *rpcURLArg).Msg("Failed to connect to Ethereum client")
 	}
 
+	// get the LP price provider config
+	cp := protocols.KodiakLPPriceProvider{}
+	configBytes, err := cp.GetConfig(ctx, *addressArg, client)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to get config for KodiakLPPriceProvider")
+	}
+
+	// Parse the smart contract address
+	address := common.HexToAddress(*addressArg)
+	// Create a new KodiakLPPriceProvider
+	provider := protocols.NewKodiakLPPriceProvider(address, pmap, logger, configBytes)
+
 	// Initialize the provider
-	ctx := context.Background()
 	err = provider.Initialize(ctx, client)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize KodiakLPPriceProvider")
