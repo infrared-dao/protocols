@@ -258,7 +258,7 @@ func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context, address string, c
 	// decimals
 	decimals, err := contract.Decimals(opts)
 	if err != nil {
-		err = fmt.Errorf("failed to obtain number of decmals for LP token %s, %v", address, err)
+		err = fmt.Errorf("failed to obtain number of decimals for LP token %s, %v", address, err)
 		return nil, err
 	}
 	kc.LPTDecimals = uint(decimals)
