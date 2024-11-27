@@ -2,9 +2,11 @@ package protocols
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -13,6 +15,12 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
+
+type KodiakConfig struct {
+	Token0      string `json:"token0"`
+	Token1      string `json:"token1"`
+	LPTDecimals uint   `json:"lpt_decimals"`
+}
 
 // KodiakLPPriceProvider defines the provider for Kodiak LP price and TVL.
 type KodiakLPPriceProvider struct {
@@ -158,4 +166,43 @@ func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (string, error) {
 		Msg("TVL calculated successfully")
 
 	return totalValue.StringFixed(8), nil
+}
+
+func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context) ([]byte, error) {
+	kc := KodiakConfig{}
+	opts := &bind.CallOpts{
+		Pending: false,
+		Context: ctx,
+	}
+
+	// token0
+	addr, err := k.contract.Token0(opts)
+	if err != nil {
+		k.logger.Error().Msgf("failed to obtain token0 address for kodiak vault %s, %v", k.address.String(), err)
+		return nil, err
+	}
+	kc.Token0 = strings.ToLower(addr.Hex())
+
+	// token1
+	addr, err = k.contract.Token1(opts)
+	if err != nil {
+		k.logger.Error().Msgf("failed to obtain token1 address for kodiak vault %s, %v", k.address.String(), err)
+		return nil, err
+	}
+	kc.Token1 = strings.ToLower(addr.Hex())
+
+	// decimals
+	decimals, err := k.contract.Decimals(opts)
+	if err != nil {
+		k.logger.Error().Msgf("failed to obtain number of decmals for LP token %s, %v", k.address.String(), err)
+		return nil, err
+	}
+	kc.LPTDecimals = uint(decimals)
+
+	body, err := json.Marshal(kc)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }

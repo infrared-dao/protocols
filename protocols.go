@@ -7,11 +7,15 @@ import (
 )
 
 // Version information
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 // Protocol defines methods for querying DeFi protocol metrics.
 // Implementations must be safe for concurrent use.
 type Protocol interface {
+	// GetConfig returns static configuration data needed for LP token price/TVL calculation.
+	// Returns an error if the configuration cannot be prepared.
+	GetConfig(ctx context.Context) ([]byte, error)
+
 	// LPTokenPrice returns the current price of the protocol's LP token
 	// in USD.
 	// Returns an error if the price cannot be determined.
