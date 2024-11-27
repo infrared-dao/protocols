@@ -73,26 +73,26 @@ func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big
 }
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD cents (1 USD = 100 cents).
-func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (uint64, error) {
+func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	k.logger.Info().Msg("Calculating LP token price")
 
 	// Fetch total supply
 	totalSupply, err := k.getTotalSupply(ctx)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	// Avoid division by zero
 	if totalSupply.Sign() == 0 {
 		err := errors.New("totalSupply is zero, cannot calculate LP token price")
 		k.logger.Error().Err(err).Msg("Invalid totalSupply")
-		return 0, err
+		return "", err
 	}
 
 	// Fetch underlying balances
 	amount0, amount1, err := k.getUnderlyingBalances(ctx)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	// Calculate total value in USD using token prices
@@ -105,26 +105,23 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (uint64, error
 	totalSupplyDecimal := decimal.NewFromBigInt(totalSupply, 0)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
 
-	// Convert to USD cents
-	priceInCents := pricePerToken.Mul(decimal.NewFromInt(100)).Round(0).BigInt()
-
 	k.logger.Info().
 		Str("totalValue", totalValue.String()).
 		Str("totalSupply", totalSupplyDecimal.String()).
 		Str("pricePerToken", pricePerToken.String()).
 		Msg("LP token price calculated successfully")
 
-	return priceInCents.Uint64(), nil
+	return pricePerToken.StringFixed(8), nil
 }
 
 // TVL returns the Total Value Locked in the protocol in USD cents (1 USD = 100 cents).
-func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (uint64, error) {
+func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	k.logger.Info().Msg("Calculating TVL")
 
 	// Fetch underlying balances
 	amount0, amount1, err := k.getUnderlyingBalances(ctx)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	// Calculate total value in USD using token prices
@@ -137,12 +134,9 @@ func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (uint64, error) {
 	// Divide by 1e18 to normalize the value
 	totalValue = totalValue.Div(decimal.NewFromInt(1e18))
 
-	// Convert to USD cents
-	totalValueInCents := totalValue.Mul(decimal.NewFromInt(100)).Round(0).BigInt()
-
 	k.logger.Info().
 		Str("totalValue", totalValue.String()).
 		Msg("TVL calculated successfully")
 
-	return totalValueInCents.Uint64(), nil
+	return totalValue.StringFixed(8), nil
 }

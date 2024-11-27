@@ -82,7 +82,7 @@ func main() {
 		logger.Error().Err(err).Msg("Failed to fetch LP token price")
 	} else {
 		logger.Info().
-			Uint64("LPTokenPrice (USD cents)", lpPrice).
+			Str("LPTokenPrice (USD)", lpPrice).
 			Msg("Successfully fetched LP token price")
 	}
 
@@ -92,7 +92,7 @@ func main() {
 		logger.Error().Err(err).Msg("Failed to fetch TVL")
 	} else {
 		logger.Info().
-			Uint64("TVL (USD cents)", tvl).
+			Str("TVL (USD)", tvl).
 			Msg("Successfully fetched TVL")
 	}
 }
