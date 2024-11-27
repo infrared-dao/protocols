@@ -3,9 +3,7 @@ package protocols
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -19,12 +17,12 @@ import (
 type KodiakLPPriceProvider struct {
 	address     common.Address
 	logger      zerolog.Logger
-	tokenPrices map[string]decimal.Decimal // Prices of the two underlying tokens
+	tokenPrices []decimal.Decimal // Prices of the two underlying tokens
 	contract    *sc.KodiakV1
 }
 
 // NewKodiakLPPriceProvider creates a new instance of the KodiakLPPriceProvider.
-func NewKodiakLPPriceProvider(address common.Address, prices map[string]decimal.Decimal, logger zerolog.Logger) *KodiakLPPriceProvider {
+func NewKodiakLPPriceProvider(address common.Address, prices []decimal.Decimal, logger zerolog.Logger) *KodiakLPPriceProvider {
 	return &KodiakLPPriceProvider{
 		address:     address,
 		logger:      logger,
@@ -74,40 +72,6 @@ func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big
 	return ubs.Amount0Current, ubs.Amount1Current, err
 }
 
-// getTokenPrices gets the underlying token prices.
-func (k *KodiakLPPriceProvider) getTokenPrices(ctx context.Context) ([]decimal.Decimal, error) {
-	opts := &bind.CallOpts{
-		Pending: false,
-		Context: ctx,
-	}
-	t0a, err := k.contract.Token0(opts)
-	if err != nil {
-		k.logger.Error().Msgf("failed to obtain token0 address for kodiak vault %s, %v", k.address.String(), err)
-		return nil, err
-	}
-	price, ok := k.tokenPrices[strings.ToLower(t0a.Hex())]
-	if !ok {
-		err = fmt.Errorf("no price for token0, %v", t0a.Hex())
-		k.logger.Error().Msg(err.Error())
-		return nil, err
-	}
-	var prices []decimal.Decimal
-	prices = append(prices, price)
-	t1a, err := k.contract.Token1(opts)
-	if err != nil {
-		k.logger.Error().Msgf("failed to obtain token1 address for kodiak vault %s, %v", k.address.String(), err)
-		return nil, err
-	}
-	price, ok = k.tokenPrices[strings.ToLower(t1a.Hex())]
-	if !ok {
-		err = fmt.Errorf("no price for token1, %v", t1a.Hex())
-		k.logger.Error().Msg(err.Error())
-		return nil, err
-	}
-	prices = append(prices, price)
-	return prices, err
-}
-
 // LPTokenPrice returns the current price of the protocol's LP token in USD cents (1 USD = 100 cents).
 func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (uint64, error) {
 	k.logger.Info().Msg("Calculating LP token price")
@@ -135,11 +99,7 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (uint64, error
 	amount0Decimal := decimal.NewFromBigInt(amount0, 0)
 	amount1Decimal := decimal.NewFromBigInt(amount1, 0)
 
-	tokenPrices, err := k.getTokenPrices(ctx)
-	if err != nil {
-		return 0, err
-	}
-	totalValue := amount0Decimal.Mul(tokenPrices[0]).Add(amount1Decimal.Mul(tokenPrices[1]))
+	totalValue := amount0Decimal.Mul(k.tokenPrices[0]).Add(amount1Decimal.Mul(k.tokenPrices[1]))
 
 	// Calculate price per LP token
 	totalSupplyDecimal := decimal.NewFromBigInt(totalSupply, 0)
@@ -171,11 +131,7 @@ func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (uint64, error) {
 	amount0Decimal := decimal.NewFromBigInt(amount0, 0)
 	amount1Decimal := decimal.NewFromBigInt(amount1, 0)
 
-	tokenPrices, err := k.getTokenPrices(ctx)
-	if err != nil {
-		return 0, err
-	}
-	totalValue := amount0Decimal.Mul(tokenPrices[0]).Add(amount1Decimal.Mul(tokenPrices[1]))
+	totalValue := amount0Decimal.Mul(k.tokenPrices[0]).Add(amount1Decimal.Mul(k.tokenPrices[1]))
 
 	// Divide by 1e18 to normalize the value
 	totalValue = totalValue.Div(decimal.NewFromInt(1e18))
