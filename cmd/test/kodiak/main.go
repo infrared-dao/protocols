@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"os"
+	"strings"
 
 	"github.com/infrared-dao/protocols"
 
@@ -21,8 +23,8 @@ func main() {
 
 	// Command-line arguments
 	addressArg := flag.String("address", "", "Smart contract address")
-	price0Arg := flag.String("price0", "", "price of token 0")
-	price1Arg := flag.String("price1", "", "price of token 1")
+	price0Arg := flag.String("price0", "", "address:price of token 0, colon delimited")
+	price1Arg := flag.String("price1", "", "address:price of token 1, colon delimited")
 	rpcURLArg := flag.String("rpcurl", "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID", "Ethereum RPC URL")
 	flag.Parse()
 
@@ -45,23 +47,42 @@ func main() {
 	}
 
 	// Parse prices
-	price0, err := decimal.NewFromString(*price0Arg)
+	p0data := strings.Split(*price0Arg, ":")
+	if len(p0data) != 2 {
+		logger.Fatal().Msgf("Invalid price0, '%s'", *price0Arg)
+	}
+	price0, err := decimal.NewFromString(p0data[1])
 	if err != nil {
 		logger.Fatal().Err(err).Str("price0", *price0Arg).Msg("Invalid price0")
 	}
-	price1, err := decimal.NewFromString(*price1Arg)
+	p1data := strings.Split(*price1Arg, ":")
+	if len(p1data) != 2 {
+		logger.Fatal().Msgf("Invalid price1, '%s'", *price1Arg)
+	}
+	price1, err := decimal.NewFromString(p1data[1])
 	if err != nil {
 		logger.Fatal().Err(err).Str("price1", *price1Arg).Msg("Invalid price1")
 	}
-	prices := []decimal.Decimal{
-		price0,
-		price1,
+
+	kc := protocols.KodiakConfig{
+		Token0:      strings.ToLower(p0data[0]),
+		Token1:      strings.ToLower(p1data[0]),
+		LPTDecimals: 18,
+	}
+	configBytes, err := json.Marshal(kc)
+	if err != nil {
+		logger.Fatal().Msgf("Invalid config, %v", kc)
+	}
+
+	pmap := map[string]decimal.Decimal{
+		strings.ToLower(p0data[0]): price0,
+		strings.ToLower(p1data[0]): price1,
 	}
 	// Parse the smart contract address
 	address := common.HexToAddress(*addressArg)
 
 	// Create a new KodiakLPPriceProvider
-	provider := protocols.NewKodiakLPPriceProvider(address, prices, logger)
+	provider := protocols.NewKodiakLPPriceProvider(address, pmap, logger, configBytes)
 
 	// Connect to the Ethereum client
 	client, err := ethclient.Dial(*rpcURLArg)
