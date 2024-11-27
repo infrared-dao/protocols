@@ -4,6 +4,8 @@ package protocols
 
 import (
 	"context"
+
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 // Version information
@@ -14,7 +16,7 @@ const Version = "0.3.0"
 type Protocol interface {
 	// GetConfig returns static configuration data needed for LP token price/TVL calculation.
 	// Returns an error if the configuration cannot be prepared.
-	GetConfig(ctx context.Context) ([]byte, error)
+	GetConfig(ctx context.Context, address string, ethClient *ethclient.Client) ([]byte, error)
 
 	// LPTokenPrice returns the current price of the protocol's LP token
 	// in USD.

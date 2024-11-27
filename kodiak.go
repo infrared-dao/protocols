@@ -221,7 +221,18 @@ func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return totalValue.StringFixed(8), nil
 }
 
-func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context) ([]byte, error) {
+func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context, address string, client *ethclient.Client) ([]byte, error) {
+	var err error
+	if !common.IsHexAddress(address) {
+		err = fmt.Errorf("invalid smart contract address, '%s'", address)
+		return nil, err
+	}
+	contract, err := sc.NewKodiakV1(common.HexToAddress(address), client)
+	if err != nil {
+		err = fmt.Errorf("failed to instatiate KodiakV1 smart contract, %v", err)
+		return nil, err
+	}
+
 	kc := KodiakConfig{}
 	opts := &bind.CallOpts{
 		Pending: false,
@@ -229,25 +240,25 @@ func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context) ([]byte, error) {
 	}
 
 	// token0
-	addr, err := k.contract.Token0(opts)
+	addr, err := contract.Token0(opts)
 	if err != nil {
-		k.logger.Error().Msgf("failed to obtain token0 address for kodiak vault %s, %v", k.address.String(), err)
+		err = fmt.Errorf("failed to obtain token0 address for kodiak vault %s, %v", address, err)
 		return nil, err
 	}
 	kc.Token0 = strings.ToLower(addr.Hex())
 
 	// token1
-	addr, err = k.contract.Token1(opts)
+	addr, err = contract.Token1(opts)
 	if err != nil {
-		k.logger.Error().Msgf("failed to obtain token1 address for kodiak vault %s, %v", k.address.String(), err)
+		err = fmt.Errorf("failed to obtain token1 address for kodiak vault %s, %v", address, err)
 		return nil, err
 	}
 	kc.Token1 = strings.ToLower(addr.Hex())
 
 	// decimals
-	decimals, err := k.contract.Decimals(opts)
+	decimals, err := contract.Decimals(opts)
 	if err != nil {
-		k.logger.Error().Msgf("failed to obtain number of decmals for LP token %s, %v", k.address.String(), err)
+		err = fmt.Errorf("failed to obtain number of decmals for LP token %s, %v", address, err)
 		return nil, err
 	}
 	kc.LPTDecimals = uint(decimals)
