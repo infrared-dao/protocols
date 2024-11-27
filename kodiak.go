@@ -133,6 +133,7 @@ func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (uint64, error) {
 
 	totalValue := amount0Decimal.Mul(k.tokenPrices[0]).Add(amount1Decimal.Mul(k.tokenPrices[1]))
 
+	// TODO: do not rely on 18 decimals, use decimals provided by caller [Issue DEV-866] (@kuma)
 	// Divide by 1e18 to normalize the value
 	totalValue = totalValue.Div(decimal.NewFromInt(1e18))
 
