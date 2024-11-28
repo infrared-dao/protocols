@@ -17,9 +17,9 @@ import (
 )
 
 type Price struct {
-	Name     string
-	Decimals uint
-	Price    decimal.Decimal
+	TokenName string
+	Decimals  uint
+	Price     decimal.Decimal
 }
 
 type KodiakConfig struct {
@@ -147,14 +147,6 @@ func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD cents (1 USD = 100 cents).
 func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	k.logger.Info().Msg("Calculating LP token price")
-	var err error
-	if len(k.prices) != 2 {
-		err = fmt.Errorf("invalid price array, should have 2 elements, got %d instead", len(k.prices))
-		k.logger.Error().Msg(err.Error())
-		return "", err
-	}
-
 	// Fetch total supply
 	totalSupply, err := k.getTotalSupply(ctx)
 	if err != nil {
@@ -168,21 +160,12 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 		return "", err
 	}
 
-	// Fetch underlying balances
-	amount0, amount1, err := k.getUnderlyingBalances(ctx)
+	totalValue, err := k.getTotalValue(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	// TODO:use decimals provided by caller to calculate the correct price [Issue DEV-866] (@kuma)
-	// Calculate total value in USD using token prices
-	amount0Decimal := decimal.NewFromBigInt(amount0, 0)
-	amount1Decimal := decimal.NewFromBigInt(amount1, 0)
-
-	totalValue := amount0Decimal.Mul(k.prices[0].Price).Add(amount1Decimal.Mul(k.prices[1].Price))
-
-	// Calculate price per LP token
-	totalSupplyDecimal := decimal.NewFromBigInt(totalSupply, 0)
+	totalSupplyDecimal := NormalizeAmount(totalSupply, k.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
 
 	k.logger.Info().
@@ -196,29 +179,10 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 
 // TVL returns the Total Value Locked in the protocol in USD cents (1 USD = 100 cents).
 func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (string, error) {
-	k.logger.Info().Msg("Calculating TVL")
-	var err error
-	if len(k.prices) != 2 {
-		err = fmt.Errorf("invalid price array, should have 2 elements, got %d instead", len(k.prices))
-		k.logger.Error().Msg(err.Error())
-		return "", err
-	}
-
-	// Fetch underlying balances
-	amount0, amount1, err := k.getUnderlyingBalances(ctx)
+	totalValue, err := k.getTotalValue(ctx)
 	if err != nil {
 		return "", err
 	}
-
-	// Calculate total value in USD using token prices
-	amount0Decimal := decimal.NewFromBigInt(amount0, 0)
-	amount1Decimal := decimal.NewFromBigInt(amount1, 0)
-
-	totalValue := amount0Decimal.Mul(k.prices[0].Price).Add(amount1Decimal.Mul(k.prices[1].Price))
-
-	// TODO: do not rely on 18 decimals, use decimals provided by caller [Issue DEV-866] (@kuma)
-	// Divide by 1e18 to normalize the value
-	totalValue = totalValue.Div(decimal.NewFromInt(1e18))
 
 	k.logger.Info().
 		Str("totalValue", totalValue.String()).
@@ -275,4 +239,43 @@ func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context, address string, c
 	}
 
 	return body, nil
+}
+
+func NormalizeAmount(amount *big.Int, decimals uint) decimal.Decimal {
+	divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil)
+	return decimal.NewFromBigInt(amount, 0).Div(decimal.NewFromBigInt(divisor, 0))
+}
+func (k *KodiakLPPriceProvider) getTotalValue(ctx context.Context) (decimal.Decimal, error) {
+	var err error
+	if len(k.prices) != 2 {
+		err = fmt.Errorf("invalid price array, should have 2 elements, got %d instead", len(k.prices))
+		k.logger.Error().Msg(err.Error())
+		return decimal.Zero, err
+	}
+
+	// Fetch total supply
+	totalSupply, err := k.getTotalSupply(ctx)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	// Avoid division by zero
+	if totalSupply.Sign() == 0 {
+		err := errors.New("totalSupply is zero, cannot calculate LP token price")
+		k.logger.Error().Err(err).Msg("Invalid totalSupply")
+		return decimal.Zero, err
+	}
+
+	// Fetch underlying balances
+	amount0, amount1, err := k.getUnderlyingBalances(ctx)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	amount0Decimal := NormalizeAmount(amount0, k.prices[0].Decimals)
+	amount1Decimal := NormalizeAmount(amount1, k.prices[1].Decimals)
+	totalValue := amount0Decimal.Mul(k.prices[0].Price)
+	totalValue.Add(amount1Decimal.Mul(k.prices[1].Price))
+	totalSupplyDecimal := NormalizeAmount(totalSupply, k.config.LPTDecimals)
+	return totalSupplyDecimal, nil
 }
