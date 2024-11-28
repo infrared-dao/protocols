@@ -63,9 +63,9 @@ func main() {
 		logger.Fatal().Err(err).Str("price1", *price1Arg).Msg("Invalid price1")
 	}
 
-	pmap := map[string]decimal.Decimal{
-		strings.ToLower(p0data[0]): price0,
-		strings.ToLower(p1data[0]): price1,
+	pmap := map[string]protocols.Price{
+		strings.ToLower(p0data[0]): protocols.Price{Decimals: 18, Price: price0},
+		strings.ToLower(p1data[0]): protocols.Price{Decimals: 18, Price: price1},
 	}
 
 	ctx := context.Background()

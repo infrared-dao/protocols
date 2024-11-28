@@ -16,6 +16,12 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type Price struct {
+	Name     string
+	Decimals uint
+	Price    decimal.Decimal
+}
+
 type KodiakConfig struct {
 	Token0      string `json:"token0"`
 	Token1      string `json:"token1"`
@@ -26,22 +32,22 @@ type KodiakConfig struct {
 type KodiakLPPriceProvider struct {
 	address     common.Address
 	logger      zerolog.Logger
-	priceMap    map[string]decimal.Decimal
-	prices      []decimal.Decimal
+	priceMap    map[string]Price
+	prices      []Price
 	configBytes []byte
 	config      *KodiakConfig
 	contract    *sc.KodiakV1
 }
 
 // NewKodiakLPPriceProvider creates a new instance of the KodiakLPPriceProvider.
-func NewKodiakLPPriceProvider(address common.Address, prices map[string]decimal.Decimal, logger zerolog.Logger, config []byte) *KodiakLPPriceProvider {
+func NewKodiakLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *KodiakLPPriceProvider {
 	k := &KodiakLPPriceProvider{
 		address:     address,
 		logger:      logger,
 		priceMap:    prices,
 		configBytes: config,
 	}
-	k.prices = make([]decimal.Decimal, 2)
+	k.prices = make([]Price, 2)
 	return k
 }
 
@@ -173,7 +179,7 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 	amount0Decimal := decimal.NewFromBigInt(amount0, 0)
 	amount1Decimal := decimal.NewFromBigInt(amount1, 0)
 
-	totalValue := amount0Decimal.Mul(k.prices[0]).Add(amount1Decimal.Mul(k.prices[1]))
+	totalValue := amount0Decimal.Mul(k.prices[0].Price).Add(amount1Decimal.Mul(k.prices[1].Price))
 
 	// Calculate price per LP token
 	totalSupplyDecimal := decimal.NewFromBigInt(totalSupply, 0)
@@ -208,7 +214,7 @@ func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	amount0Decimal := decimal.NewFromBigInt(amount0, 0)
 	amount1Decimal := decimal.NewFromBigInt(amount1, 0)
 
-	totalValue := amount0Decimal.Mul(k.prices[0]).Add(amount1Decimal.Mul(k.prices[1]))
+	totalValue := amount0Decimal.Mul(k.prices[0].Price).Add(amount1Decimal.Mul(k.prices[1].Price))
 
 	// TODO: do not rely on 18 decimals, use decimals provided by caller [Issue DEV-866] (@kuma)
 	// Divide by 1e18 to normalize the value
