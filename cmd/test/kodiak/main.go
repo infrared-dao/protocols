@@ -100,7 +100,7 @@ func main() {
 	} else {
 		logger.Info().
 			Str("LPTokenPrice (USD)", lpPrice).
-			Msg("Successfully fetched LP token price")
+			Msg("successfully fetched LP token price")
 	}
 
 	// Fetch TVL
@@ -110,6 +110,6 @@ func main() {
 	} else {
 		logger.Info().
 			Str("TVL (USD)", tvl).
-			Msg("Successfully fetched TVL")
+			Msg("successfully fetched TVL")
 	}
 }

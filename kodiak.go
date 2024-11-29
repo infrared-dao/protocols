@@ -53,7 +53,6 @@ func NewKodiakLPPriceProvider(address common.Address, prices map[string]Price, l
 
 // Initialize instantiates the KodiakV1 smart contract.
 func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
-	k.logger.Info().Msg("Initializing KodiakLPPriceProvider")
 	var err error
 	if len(k.prices) != 2 {
 		err = fmt.Errorf("invalid price array, should have 2 elements, got %d instead", len(k.prices))
@@ -165,7 +164,7 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 		return "", err
 	}
 
-	totalSupplyDecimal := NormalizeAmount(totalSupply, k.config.LPTDecimals)
+	totalSupplyDecimal := normalizeAmount(totalSupply, k.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
 
 	k.logger.Info().
@@ -241,28 +240,11 @@ func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context, address string, c
 	return body, nil
 }
 
-func NormalizeAmount(amount *big.Int, decimals uint) decimal.Decimal {
-	divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil)
-	return decimal.NewFromBigInt(amount, 0).Div(decimal.NewFromBigInt(divisor, 0))
-}
 func (k *KodiakLPPriceProvider) getTotalValue(ctx context.Context) (decimal.Decimal, error) {
 	var err error
 	if len(k.prices) != 2 {
 		err = fmt.Errorf("invalid price array, should have 2 elements, got %d instead", len(k.prices))
 		k.logger.Error().Msg(err.Error())
-		return decimal.Zero, err
-	}
-
-	// Fetch total supply
-	totalSupply, err := k.getTotalSupply(ctx)
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	// Avoid division by zero
-	if totalSupply.Sign() == 0 {
-		err := errors.New("totalSupply is zero, cannot calculate LP token price")
-		k.logger.Error().Err(err).Msg("Invalid totalSupply")
 		return decimal.Zero, err
 	}
 
@@ -272,10 +254,21 @@ func (k *KodiakLPPriceProvider) getTotalValue(ctx context.Context) (decimal.Deci
 		return decimal.Zero, err
 	}
 
-	amount0Decimal := NormalizeAmount(amount0, k.prices[0].Decimals)
-	amount1Decimal := NormalizeAmount(amount1, k.prices[1].Decimals)
-	totalValue := amount0Decimal.Mul(k.prices[0].Price)
-	totalValue.Add(amount1Decimal.Mul(k.prices[1].Price))
-	totalSupplyDecimal := NormalizeAmount(totalSupply, k.config.LPTDecimals)
-	return totalSupplyDecimal, nil
+	amount0Decimal := normalizeAmount(amount0, k.prices[0].Decimals)
+	amount1Decimal := normalizeAmount(amount1, k.prices[1].Decimals)
+	totalValue := amount0Decimal.Mul(k.prices[0].Price).Add(amount1Decimal.Mul(k.prices[1].Price))
+	return totalValue, nil
+}
+
+func normalizeAmount(amount *big.Int, decimals uint) decimal.Decimal {
+	divisor := pow10(decimals)
+	return decimal.NewFromBigInt(amount, 0).Div(divisor)
+}
+
+func pow10(n uint) decimal.Decimal {
+	exp := int64(n)
+	base := decimal.NewFromInt(10)
+	result := base.Pow(decimal.NewFromInt(exp))
+
+	return result
 }
