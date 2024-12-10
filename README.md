@@ -34,6 +34,8 @@ Use the golang `big.Int` type to represent token amounts, use the `decimal.Decim
 
 If your protocol has multiple pools/vaults with infrared, then we will initialize and run separate instances of the adapter for each pool/vault with different initialization data.  Please write your adapter and data structs to represent a single pool/vault in your protocol with all differentiation passed as inputs.
 
+Add ABIs for any contracts you will make calls to under /assets/abis and update the makefile codegen command to generate their go bindings.  Use the pkg and output location patterns which already exist.
+
 
 ##### New Struct and Initialize Functions
 
