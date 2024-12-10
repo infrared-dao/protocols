@@ -104,7 +104,7 @@ func (b *BexLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	totalSupplyDecimal := normalizeAmount(totalSupply, b.config.LPTDecimals)
+	totalSupplyDecimal := NormalizeAmount(totalSupply, b.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
 
 	b.logger.Info().
@@ -208,13 +208,13 @@ func (b *BexLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, e
 	if err != nil {
 		return decimal.Zero, err
 	}
-	amountBaseDecimal := normalizeAmount(amountBase, priceBase.Decimals)
+	amountBaseDecimal := NormalizeAmount(amountBase, priceBase.Decimals)
 
 	priceQuote, err := b.getPrice(b.config.Quote)
 	if err != nil {
 		return decimal.Zero, err
 	}
-	amountQuoteDecimal := normalizeAmount(amountQuote, priceQuote.Decimals)
+	amountQuoteDecimal := NormalizeAmount(amountQuote, priceQuote.Decimals)
 
 	totalValue := amountBaseDecimal.Mul(priceBase.Price).Add(amountQuoteDecimal.Mul(priceQuote.Price))
 	return totalValue, nil

@@ -16,12 +16,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-type Price struct {
-	TokenName string
-	Decimals  uint
-	Price     decimal.Decimal
-}
-
 type KodiakConfig struct {
 	Token0      string `json:"token0"`
 	Token1      string `json:"token1"`
@@ -100,7 +94,7 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 		return "", err
 	}
 
-	totalSupplyDecimal := normalizeAmount(totalSupply, k.config.LPTDecimals)
+	totalSupplyDecimal := NormalizeAmount(totalSupply, k.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
 
 	k.logger.Info().
@@ -189,13 +183,13 @@ func (k *KodiakLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal
 	if err != nil {
 		return decimal.Zero, err
 	}
-	amount0Decimal := normalizeAmount(amount0, price0.Decimals)
+	amount0Decimal := NormalizeAmount(amount0, price0.Decimals)
 
 	price1, err := k.getPrice(k.config.Token1)
 	if err != nil {
 		return decimal.Zero, err
 	}
-	amount1Decimal := normalizeAmount(amount1, price1.Decimals)
+	amount1Decimal := NormalizeAmount(amount1, price1.Decimals)
 	totalValue := amount0Decimal.Mul(price0.Price).Add(amount1Decimal.Mul(price1.Price))
 	return totalValue, nil
 }
@@ -208,19 +202,6 @@ func (k *KodiakLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 		return nil, err
 	}
 	return &price, nil
-}
-
-func normalizeAmount(amount *big.Int, decimals uint) decimal.Decimal {
-	divisor := pow10(decimals)
-	return decimal.NewFromBigInt(amount, 0).Div(divisor)
-}
-
-func pow10(n uint) decimal.Decimal {
-	exp := int64(n)
-	base := decimal.NewFromInt(10)
-	result := base.Pow(decimal.NewFromInt(exp))
-
-	return result
 }
 
 // getTotalSupply fetches the total supply of the LP token.
