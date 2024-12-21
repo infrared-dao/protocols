@@ -32,3 +32,4 @@ codegen:
 	abigen --abi assets/abis/kodiakvaultv1.abi --pkg sc --type KodiakV1 --out internal/sc/kodiak_v1.go
 	abigen --abi assets/abis/croclperc20.abi --pkg sc --type CrocLPERC20 --out internal/sc/croc_lp_erc20.go	
 	abigen --abi assets/abis/crocquery.abi --pkg sc --type CrocQuery --out internal/sc/croc_query.go
+	abigen --abi assets/abis/junkyvaultmanager.abi --pkg sc --type JunkyVaultManager --out internal/sc/junky_vault_manager.go
