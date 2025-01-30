@@ -3,7 +3,7 @@ module github.com/infrared-dao/protocols
 go 1.23.2
 
 require (
-	github.com/ethereum/go-ethereum v1.14.12
+	github.com/ethereum/go-ethereum v1.14.13
 	github.com/rs/zerolog v1.33.0
 	github.com/shopspring/decimal v1.4.0
 )
