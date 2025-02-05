@@ -18,10 +18,10 @@ build: codegen lint
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/kodiak/main.go
 	rm -f $(BIN_DIR)/bex
 	go build -o $(BIN_DIR)/bex -v -ldflags \
-		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/bex/main.go		
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/bex/main.go
 	rm -f $(BIN_DIR)/bexv2
 	go build -o $(BIN_DIR)/bexv2 -v -ldflags \
-		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/bexv2/main.go		
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/bexv2/main.go
 
 lint:
 	golangci-lint run
@@ -31,9 +31,10 @@ test: lint
 
 codegen:
 	mkdir -p internal/sc
-	abigen --abi assets/abis/erc20.abi --pkg sc --type ERC20 --out internal/sc/erc20.go	
+	abigen --abi assets/abis/erc20.abi --pkg sc --type ERC20 --out internal/sc/erc20.go
 	abigen --abi assets/abis/kodiakvaultv1.abi --pkg sc --type KodiakV1 --out internal/sc/kodiak_v1.go
-	abigen --abi assets/abis/croclperc20.abi --pkg sc --type CrocLPERC20 --out internal/sc/croc_lp_erc20.go	
+	abigen --abi assets/abis/croclperc20.abi --pkg sc --type CrocLPERC20 --out internal/sc/croc_lp_erc20.go
 	abigen --abi assets/abis/crocquery.abi --pkg sc --type CrocQuery --out internal/sc/croc_query.go
 	abigen --abi assets/abis/balancervault.abi --pkg sc --type BalancerVault --out internal/sc/balancer_vault.go
 	abigen --abi assets/abis/balancerbasepool.abi --pkg sc --type BalancerBasePool --out internal/sc/balancer_base_pool.go
+	abigen --abi assets/abis/4626.abi --pkg sc --type ERC4626 --out internal/sc/erc_4626.go
