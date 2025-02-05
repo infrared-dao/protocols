@@ -22,6 +22,9 @@ build: codegen lint
 	rm -f $(BIN_DIR)/bexv2
 	go build -o $(BIN_DIR)/bexv2 -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/bexv2/main.go
+	rm -f $(BIN_DIR)/dolomite
+	go build -o $(BIN_DIR)/dolomite -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/dolomite/main.go
 
 lint:
 	golangci-lint run
