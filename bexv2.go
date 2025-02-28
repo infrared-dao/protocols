@@ -27,6 +27,7 @@ type BexV2LPPriceProvider struct {
 	poolAddress   common.Address
 	logger        zerolog.Logger
 	priceMap      map[string]Price
+	block         *big.Int
 	configBytes   []byte
 	config        *BexV2PoolConfig
 	vaultContract *sc.BalancerVault
@@ -34,12 +35,13 @@ type BexV2LPPriceProvider struct {
 }
 
 // NewBexLPPriceProvider creates a new instance of the BexLPPriceProvider.
-func NewBexV2LPPriceProvider(vaultAddress common.Address, poolAddress common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *BexV2LPPriceProvider {
+func NewBexV2LPPriceProvider(vaultAddress common.Address, poolAddress common.Address, prices map[string]Price, block *big.Int, logger zerolog.Logger, config []byte) *BexV2LPPriceProvider {
 	b := &BexV2LPPriceProvider{
 		vaultAddress: vaultAddress,
 		poolAddress:  poolAddress,
 		logger:       logger,
 		priceMap:     prices,
+		block:        block,
 		configBytes:  config,
 	}
 	return b
@@ -72,12 +74,14 @@ func (b *BexV2LPPriceProvider) Initialize(ctx context.Context, client *ethclient
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD
 func (b *BexV2LPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-
-	// Fetch total supply from Balancer Base Pool which implements ERC20 interface
-	//totalSupply, err := b.poolContract.BalancerBasePoolCaller.TotalSupply(&bind.CallOpts{})
+	opts := &bind.CallOpts{
+		Pending:     false,
+		Context:     ctx,
+		BlockNumber: b.block,
+	}
 
 	// Using GetActualSupply because this is how much is circulating for pools which lock up some LP tokens
-	totalSupply, err := b.poolContract.BalancerBasePoolCaller.GetActualSupply(&bind.CallOpts{})
+	totalSupply, err := b.poolContract.BalancerBasePoolCaller.GetActualSupply(opts)
 	if err != nil {
 		return "", err
 	}
@@ -201,8 +205,9 @@ func (b *BexV2LPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getUnderlyingBalances fetches the underlying virtual token supply for each token.
 func (b *BexV2LPPriceProvider) getUnderlyingBalances(ctx context.Context) (map[string]*big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
-		Context: ctx,
+		Pending:     false,
+		Context:     ctx,
+		BlockNumber: b.block,
 	}
 
 	/********************************************

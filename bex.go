@@ -29,6 +29,7 @@ type BexLPPriceProvider struct {
 	lpTokenAddress common.Address
 	logger         zerolog.Logger
 	priceMap       map[string]Price
+	block          *big.Int
 	configBytes    []byte
 	config         *BexPoolConfig
 	queryContract  *sc.CrocQuery
@@ -36,12 +37,13 @@ type BexLPPriceProvider struct {
 }
 
 // NewBexLPPriceProvider creates a new instance of the BexLPPriceProvider.
-func NewBexLPPriceProvider(crocqueryAddress common.Address, lpTokenAddress common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *BexLPPriceProvider {
+func NewBexLPPriceProvider(crocqueryAddress common.Address, lpTokenAddress common.Address, prices map[string]Price, block *big.Int, logger zerolog.Logger, config []byte) *BexLPPriceProvider {
 	b := &BexLPPriceProvider{
 		queryAddress:   crocqueryAddress,
 		lpTokenAddress: lpTokenAddress,
 		logger:         logger,
 		priceMap:       prices,
+		block:          block,
 		configBytes:    config,
 	}
 	return b
@@ -86,8 +88,14 @@ func (b *BexLPPriceProvider) Initialize(ctx context.Context, client *ethclient.C
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD cents (1 USD = 100 cents).
 func (b *BexLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
+	opts := &bind.CallOpts{
+		Pending:     false,
+		Context:     ctx,
+		BlockNumber: b.block,
+	}
+
 	// Fetch total supply from ERC20 interface
-	totalSupply, err := b.erc20Contract.ERC20Caller.TotalSupply(&bind.CallOpts{})
+	totalSupply, err := b.erc20Contract.ERC20Caller.TotalSupply(opts)
 	if err != nil {
 		return "", err
 	}
@@ -233,8 +241,9 @@ func (b *BexLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getUnderlyingBalances fetches the underlying virtual token supply for each token.
 func (b *BexLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
-		Context: ctx,
+		Pending:     false,
+		Context:     ctx,
+		BlockNumber: b.block,
 	}
 
 	// BEX Pools on CrocSwap do not actually have a fixed supply we can look up
