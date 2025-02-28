@@ -25,6 +25,9 @@ build: codegen lint
 	rm -f $(BIN_DIR)/dolomite
 	go build -o $(BIN_DIR)/dolomite -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/dolomite/main.go
+	rm -f $(BIN_DIR)/beraborrow
+	go build -o $(BIN_DIR)/beraborrow -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/beraborrow/main.go
 
 lint:
 	golangci-lint run
@@ -41,3 +44,4 @@ codegen:
 	abigen --abi assets/abis/balancervault.abi --pkg sc --type BalancerVault --out internal/sc/balancer_vault.go
 	abigen --abi assets/abis/balancerbasepool.abi --pkg sc --type BalancerBasePool --out internal/sc/balancer_base_pool.go
 	abigen --abi assets/abis/4626.abi --pkg sc --type ERC4626 --out internal/sc/erc_4626.go
+	abigen --abi assets/abis/beraborrowcicv.abi --pkg sc --type BeraBorrowCDP --out internal/sc/beraborrow_cicv.go
