@@ -103,7 +103,7 @@ func (b *BexV2LPPriceProvider) LPTokenPrice(ctx context.Context) (string, error)
 		Str("pricePerToken", pricePerToken.String()).
 		Msg("LP token price calculated successfully")
 
-	return pricePerToken.StringFixed(8), nil
+	return pricePerToken.StringFixed(roundingDecimals), nil
 }
 
 // TVL returns the Total Value Locked in the pool in USD cents (1 USD = 100 cents).
@@ -113,11 +113,7 @@ func (b *BexV2LPPriceProvider) TVL(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	//b.logger.Info().
-	//	Str("totalValue", totalValue.String()).
-	//	Msg("TVL calculated successfully")
-
-	return totalValue.StringFixed(8), nil
+	return totalValue.StringFixed(roundingDecimals), nil
 }
 
 func (b *BexV2LPPriceProvider) GetConfig(ctx context.Context, poolAddress string, client *ethclient.Client) ([]byte, error) {
@@ -215,7 +211,7 @@ func (b *BexV2LPPriceProvider) getUnderlyingBalances(ctx context.Context) (map[s
 	********************************************/
 	poolTokens, err := b.vaultContract.BalancerVaultCaller.GetPoolTokens(opts, b.config.PoolID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get pool tokens and balances from bex, err: %w", err)
 	}
 
 	var balanceData = make(map[string]*big.Int)

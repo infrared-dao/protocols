@@ -36,6 +36,8 @@ type Protocol interface {
 
 // Useful helper functions common across all Protocol adapter implementations
 
+const roundingDecimals = 8
+
 // Type to track a token Price along with the number of decimals used representing token amounts
 type Price struct {
 	TokenName string

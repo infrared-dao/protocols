@@ -103,7 +103,7 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 		Str("pricePerToken", pricePerToken.String()).
 		Msg("LP token price calculated successfully")
 
-	return pricePerToken.StringFixed(8), nil
+	return pricePerToken.StringFixed(roundingDecimals), nil
 }
 
 // TVL returns the Total Value Locked in the protocol in USD cents (1 USD = 100 cents).
@@ -117,7 +117,7 @@ func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (string, error) {
 		Str("totalValue", totalValue.String()).
 		Msg("TVL calculated successfully")
 
-	return totalValue.StringFixed(8), nil
+	return totalValue.StringFixed(roundingDecimals), nil
 }
 
 func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context, address string, client *ethclient.Client) ([]byte, error) {
@@ -213,7 +213,7 @@ func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, e
 	ts, err := k.contract.TotalSupply(opts)
 	if err != nil {
 		k.logger.Error().Msgf("failed to obtain total supply for kodiak vault %s, %v", k.address.String(), err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get kodiak total supply, err: %w", err)
 	}
 
 	return ts, err
@@ -228,7 +228,7 @@ func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big
 	ubs, err := k.contract.GetUnderlyingBalances(opts)
 	if err != nil {
 		k.logger.Error().Msgf("failed to obtain underlying balances for kodiak vault %s, %v", k.address.String(), err)
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to get kodiak underlying balances, err: %w", err)
 	}
 	return ubs.Amount0Current, ubs.Amount1Current, err
 }
