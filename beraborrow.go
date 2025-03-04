@@ -11,26 +11,36 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
 )
 
+// This adapter is for a very specific type of BeraBorrow token setup
+// InfraredWrapper type tokens are the LP Token in this case
+// InfraredWrappers are 1-1 with the CompoundingInfraredCollateralVault token type
+
+// LPTDecimals are the decimals of the InfraredWrapper token
+// CDPDecimals are the decimals of the CompoundingInfraredCollateralVault token
 type BeraBorrowCDPConfig struct {
-	LPTDecimals uint `json:"lpt_decimals"`
+	ColVaultAddress string `json:"col_vault_address"`
+	LPTDecimals     uint   `json:"lpt_decimals"`
+	CDPDecimals     uint   `json:"cdp_decimals"`
 }
 
 // BeraBorrowLPPriceProvider defines the provider for BeraBorrow CDP price and CDP TVL.
 type BeraBorrowLPPriceProvider struct {
-	cdpAddress  common.Address
+	LPTAddress  common.Address
 	logger      zerolog.Logger
 	block       *big.Int
 	configBytes []byte
 	config      *BeraBorrowCDPConfig
-	cdpContract *sc.BeraBorrowCDP
+	lptContract *sc.BeraBorrowIW
+	cdpContract *sc.BeraBorrowCICV
 }
 
 // NewBeraBorrowLPPriceProvider creates a new instance of the BeraBorrowLPPriceProvider.
-func NewBeraBorrowLPPriceProvider(cdpAddress common.Address, block *big.Int, logger zerolog.Logger, config []byte) *BeraBorrowLPPriceProvider {
+func NewBeraBorrowLPPriceProvider(LPTAddress common.Address, block *big.Int, logger zerolog.Logger, config []byte) *BeraBorrowLPPriceProvider {
 	b := &BeraBorrowLPPriceProvider{
-		cdpAddress:  cdpAddress,
+		LPTAddress:  LPTAddress,
 		logger:      logger,
 		block:       block,
 		configBytes: config,
@@ -49,9 +59,17 @@ func (b *BeraBorrowLPPriceProvider) Initialize(ctx context.Context, client *ethc
 		return err
 	}
 
-	b.cdpContract, err = sc.NewBeraBorrowCDP(b.cdpAddress, client)
+	// Initialize the IW contract from the address in the inputs for the LP token address
+	b.lptContract, err = sc.NewBeraBorrowIW(b.LPTAddress, client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instatiate Compounding Infrared Collateral Vault contract")
+		b.logger.Error().Err(err).Msg("adapter init failed to instatiate Infrared Wrapper contract")
+		return err
+	}
+
+	// Initialize the CICV contract from the address in the config -- not the IW contract from the LP token address
+	b.cdpContract, err = sc.NewBeraBorrowCICV(common.HexToAddress(b.config.ColVaultAddress), client)
+	if err != nil {
+		b.logger.Error().Err(err).Msg("adapter init failed to instatiate Compounding Infrared Collateral Vault contract")
 		return err
 	}
 
@@ -67,13 +85,18 @@ func (b *BeraBorrowLPPriceProvider) LPTokenPrice(ctx context.Context) (string, e
 		BlockNumber: b.block,
 	}
 
-	// fetchPrice(opts) on Compounding Infrared Collateralized Vault returns USD price in decimals 18
-
-	pricePerToken18, err := b.cdpContract.BeraBorrowCDPCaller.FetchPrice(opts)
+	tvl, err := b.cicvTotalValue(ctx)
 	if err != nil {
 		return "", err
 	}
-	pricePerToken := NormalizeAmount(pricePerToken18, uint(18))
+
+	// returns a *big.Int for total supply of the LP token
+	lpTotalSupply, err := b.lptContract.BeraBorrowIWCaller.TotalSupply(opts)
+	if err != nil {
+		return "", err
+	}
+	numTokens := NormalizeAmount(lpTotalSupply, b.config.LPTDecimals)
+	pricePerToken := tvl.Div(numTokens)
 
 	b.logger.Info().
 		Str("pricePerToken", pricePerToken.String()).
@@ -82,28 +105,14 @@ func (b *BeraBorrowLPPriceProvider) LPTokenPrice(ctx context.Context) (string, e
 	return pricePerToken.StringFixed(8), nil
 }
 
-// TVL returns the Total Value Locked in the CDP in USD cents (1 USD = 100 cents).
+// TVL returns the Total Value Locked in the CDP in USD
+// Actually gets the TVL of the CICV which is 1-1 with the TVL of the IW which is the LP token
 func (b *BeraBorrowLPPriceProvider) TVL(ctx context.Context) (string, error) {
 
-	opts := &bind.CallOpts{
-		Pending:     false,
-		Context:     ctx,
-		BlockNumber: b.block,
-	}
-
-	pricePerToken18, err := b.cdpContract.BeraBorrowCDPCaller.FetchPrice(opts)
+	tvl, err := b.cicvTotalValue(ctx)
 	if err != nil {
 		return "", err
 	}
-	pricePerToken := NormalizeAmount(pricePerToken18, uint(18))
-
-	totalSupply, err := b.cdpContract.BeraBorrowCDPCaller.TotalSupply(opts)
-	if err != nil {
-		return "", err
-	}
-	numTokens := NormalizeAmount(totalSupply, b.config.LPTDecimals)
-
-	tvl := numTokens.Mul(pricePerToken)
 
 	//b.logger.Info().
 	//	Str("total value USD", tvl.String()).
@@ -112,32 +121,79 @@ func (b *BeraBorrowLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return tvl.StringFixed(8), nil
 }
 
-func (b *BeraBorrowLPPriceProvider) GetConfig(ctx context.Context, cdpAddress string, client *ethclient.Client) ([]byte, error) {
-	var err error
-	if !common.IsHexAddress(cdpAddress) {
-		err = fmt.Errorf("invalid smart contract address, '%s'", cdpAddress)
-		return nil, err
+func (b *BeraBorrowLPPriceProvider) cicvTotalValue(ctx context.Context) (decimal.Decimal, error) {
+	opts := &bind.CallOpts{
+		Pending:     false,
+		Context:     ctx,
+		BlockNumber: b.block,
 	}
 
-	cdpContract, err := sc.NewBeraBorrowCDP(common.HexToAddress(cdpAddress), client)
+	pricePerToken18, err := b.cdpContract.BeraBorrowCICVCaller.FetchPrice(opts)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instatiate Compounding Infrared Collateral Vault contract on LP Token")
+		return decimal.Zero, err
+	}
+	pricePerToken := NormalizeAmount(pricePerToken18, uint(18))
+
+	cdpTotalSupply, err := b.cdpContract.BeraBorrowCICVCaller.TotalSupply(opts)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	numTokens := NormalizeAmount(cdpTotalSupply, b.config.CDPDecimals)
+
+	cdpTotalValue := numTokens.Mul(pricePerToken)
+
+	return cdpTotalValue, nil
+}
+
+func (b *BeraBorrowLPPriceProvider) GetConfig(ctx context.Context, lpAddress string, client *ethclient.Client) ([]byte, error) {
+	var err error
+	if !common.IsHexAddress(lpAddress) {
+		err = fmt.Errorf("invalid smart contract address, '%s'", lpAddress)
 		return nil, err
 	}
 
 	bbcc := BeraBorrowCDPConfig{}
+
 	opts := &bind.CallOpts{
 		Pending: false,
 		Context: ctx,
 	}
 
-	// decimals is uint8
-	decimals, err := cdpContract.BeraBorrowCDPCaller.Decimals(opts)
+	iwContract, err := sc.NewBeraBorrowIW(common.HexToAddress(lpAddress), client)
 	if err != nil {
-		err = fmt.Errorf("failed to obtain number of decimals for LP token %s, %v", cdpAddress, err)
+		b.logger.Error().Err(err).Msg("failed to instatiate Infrared Wrapper contract on LP Token")
 		return nil, err
 	}
-	bbcc.LPTDecimals = uint(decimals)
+
+	// decimals is uint8
+	lptDecimals, err := iwContract.BeraBorrowIWCaller.Decimals(opts)
+	if err != nil {
+		err = fmt.Errorf("failed to obtain number of decimals for LP token %s, %v", lpAddress, err)
+		return nil, err
+	}
+	bbcc.LPTDecimals = uint(lptDecimals)
+
+	icvAddress, err := iwContract.BeraBorrowIWCaller.InfraredCollVault(opts)
+	if err != nil {
+		err = fmt.Errorf("failed to obtain the InfraredCollVault addressfor LP token %s, %v", lpAddress, err)
+		return nil, err
+	}
+	bbcc.ColVaultAddress = icvAddress.Hex()
+
+	// Initialize the CICV contract from address gotten from the IW contract
+	cdpContract, err := sc.NewBeraBorrowCICV(icvAddress, client)
+	if err != nil {
+		b.logger.Error().Err(err).Msg("failed to instatiate Compounding Infrared Collateral Vault contract for config")
+		return nil, err
+	}
+
+	// decimals is uint8
+	cdpDecimals, err := cdpContract.BeraBorrowCICVCaller.Decimals(opts)
+	if err != nil {
+		err = fmt.Errorf("failed to obtain number of decimals for CDP (CICV) token %s, %v", icvAddress.Hex(), err)
+		return nil, err
+	}
+	bbcc.CDPDecimals = uint(cdpDecimals)
 
 	body, err := json.Marshal(bbcc)
 	if err != nil {
