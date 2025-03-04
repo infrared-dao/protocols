@@ -19,14 +19,18 @@ func main() {
 		Logger()
 
 	// Command-line arguments
-	lpTokenArg := flag.String("address", "", "LP Token address, ie. beraborrow cdp address")
+	lpTokenArg := flag.String("address", "", "LP Token address, ie. beraborrow infrared wrapper token address")
 	rpcURLArg := flag.String("rpcurl", "https://  mainnet-rpc-url", "Berachain RPC URL")
 	flag.Parse()
 
 	// BeraBorrow CDP -- specifically a Compounding Infrared Collateralized Vault
 
+	// 0xB318Cd79dC0743De041A26D3F0d467d49955E5bC is the address of the InfraredWrapper token used as LP token
+	// 0xCE1e426E35eBc9f512944F59527304E3B771EA12 would be the address of the Compounding Infrared Collateral Vault
+	// do not use the CICV as the LP token, only the IW type token should be used as an LP token for this adapter
+
 	// beraborrow pumpBTC
-	// beraborrow -address=0xCE1e426E35eBc9f512944F59527304E3B771EA12
+	// beraborrow -address=0xB318Cd79dC0743De041A26D3F0d467d49955E5bC
 	//       -rpcurl=cartio-rpc-provider
 
 	// Validate required arguments
