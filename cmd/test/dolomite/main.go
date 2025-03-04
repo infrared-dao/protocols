@@ -59,6 +59,11 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Str("rpcurl", *rpcURLArg).Msg("Failed to connect to Ethereum client")
 	}
+	header, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to get current block header from Eth client")
+	}
+	blockNumber := header.Number
 
 	cp := protocols.DolomiteLPPriceProvider{}
 	configBytes, err := cp.GetConfig(ctx, *addressArg, client)
@@ -69,7 +74,7 @@ func main() {
 	// Parse the smart contract address
 	address := common.HexToAddress(*addressArg)
 	// Create a new DolomiteLPPriceProvider
-	provider := protocols.NewDolomiteLPPriceProvider(address, pmap, logger, configBytes)
+	provider := protocols.NewDolomiteLPPriceProvider(address, pmap, blockNumber, logger, configBytes)
 
 	// Initialize the provider
 	err = provider.Initialize(ctx, client)

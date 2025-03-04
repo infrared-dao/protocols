@@ -25,17 +25,19 @@ type DolomiteLPPriceProvider struct {
 	address     common.Address
 	logger      zerolog.Logger
 	priceMap    map[string]Price
+	block       *big.Int
 	configBytes []byte
 	config      *DolomiteConfig
 	contract    *sc.ERC4626
 }
 
 // NewDolomiteLPPriceProvider creates a new instance of the DolomiteLPPriceProvider.
-func NewDolomiteLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *DolomiteLPPriceProvider {
+func NewDolomiteLPPriceProvider(address common.Address, prices map[string]Price, block *big.Int, logger zerolog.Logger, config []byte) *DolomiteLPPriceProvider {
 	d := &DolomiteLPPriceProvider{
 		address:     address,
 		logger:      logger,
 		priceMap:    prices,
+		block:       block,
 		configBytes: config,
 	}
 	return d
@@ -180,8 +182,9 @@ func (d *DolomiteLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getTotalSupply fetches the total supply of the LP token.
 func (d *DolomiteLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
-		Context: ctx,
+		Pending:     false,
+		Context:     ctx,
+		BlockNumber: d.block,
 	}
 	totalSupply, err := d.contract.TotalSupply(opts)
 	if err != nil {
@@ -193,8 +196,9 @@ func (d *DolomiteLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int,
 
 func (d *DolomiteLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
-		Context: ctx,
+		Pending:     false,
+		Context:     ctx,
+		BlockNumber: d.block,
 	}
 
 	amount0, err := d.contract.TotalAssets(opts)

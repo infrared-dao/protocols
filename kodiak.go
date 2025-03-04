@@ -27,17 +27,19 @@ type KodiakLPPriceProvider struct {
 	address     common.Address
 	logger      zerolog.Logger
 	priceMap    map[string]Price
+	block       *big.Int
 	configBytes []byte
 	config      *KodiakConfig
 	contract    *sc.KodiakV1
 }
 
 // NewKodiakLPPriceProvider creates a new instance of the KodiakLPPriceProvider.
-func NewKodiakLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *KodiakLPPriceProvider {
+func NewKodiakLPPriceProvider(address common.Address, prices map[string]Price, block *big.Int, logger zerolog.Logger, config []byte) *KodiakLPPriceProvider {
 	k := &KodiakLPPriceProvider{
 		address:     address,
 		logger:      logger,
 		priceMap:    prices,
+		block:       block,
 		configBytes: config,
 	}
 	return k
@@ -207,8 +209,9 @@ func (k *KodiakLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getTotalSupply fetches the total supply of the LP token.
 func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
-		Context: ctx,
+		Pending:     false,
+		Context:     ctx,
+		BlockNumber: k.block,
 	}
 	ts, err := k.contract.TotalSupply(opts)
 	if err != nil {
@@ -222,8 +225,9 @@ func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, e
 // getUnderlyingBalances fetches the underlying token balances.
 func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
-		Context: ctx,
+		Pending:     false,
+		Context:     ctx,
+		BlockNumber: k.block,
 	}
 	ubs, err := k.contract.GetUnderlyingBalances(opts)
 	if err != nil {

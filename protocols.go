@@ -24,8 +24,7 @@ type Protocol interface {
 	// Returns any error which occurs in setup
 	Initialize(ctx context.Context, client *ethclient.Client) error
 
-	// LPTokenPrice returns the current price of the protocol's LP token
-	// in USD.
+	// LPTokenPrice returns the current price of the protocol's LP token in USD.
 	// Returns an error if the price cannot be determined.
 	LPTokenPrice(ctx context.Context) (string, error)
 

@@ -83,6 +83,11 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Str("rpcurl", *rpcURLArg).Msg("Failed to connect to Ethereum client")
 	}
+	header, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to get current block header from Eth client")
+	}
+	blockNumber := header.Number
 
 	// get the LP price provider config
 	cp := protocols.BexLPPriceProvider{}
@@ -95,7 +100,7 @@ func main() {
 	address := common.HexToAddress(*lpTokenArg)
 	contract := common.HexToAddress(*contractArg)
 	// Create a new KodiakLPPriceProvider
-	provider := protocols.NewBexLPPriceProvider(contract, address, pmap, logger, configBytes)
+	provider := protocols.NewBexLPPriceProvider(contract, address, pmap, blockNumber, logger, configBytes)
 
 	// Initialize the provider
 	err = provider.Initialize(ctx, client)

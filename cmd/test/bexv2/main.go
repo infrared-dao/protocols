@@ -89,6 +89,11 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Str("rpcurl", *rpcURLArg).Msg("Failed to connect to RPC client")
 	}
+	header, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to get current block header from Eth client")
+	}
+	blockNumber := header.Number
 
 	// get the LP price provider config
 	cp := protocols.BexV2LPPriceProvider{}
@@ -101,7 +106,7 @@ func main() {
 	address := common.HexToAddress(*lpTokenArg)
 	contract := common.HexToAddress(*contractArg)
 	// Create a new BexV2LPPriceProvider
-	provider := protocols.NewBexV2LPPriceProvider(contract, address, pmap, logger, configBytes)
+	provider := protocols.NewBexV2LPPriceProvider(contract, address, pmap, blockNumber, logger, configBytes)
 
 	// Initialize the provider
 	err = provider.Initialize(ctx, client)
