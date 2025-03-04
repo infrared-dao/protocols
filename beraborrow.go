@@ -95,7 +95,7 @@ func (b *BeraBorrowLPPriceProvider) LPTokenPrice(ctx context.Context) (string, e
 	// returns a *big.Int for total supply of the LP token
 	lpTotalSupply, err := b.lptContract.BeraBorrowIWCaller.TotalSupply(opts)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get beraborrow total supply, err: %w", err)
 	}
 	numTokens := NormalizeAmount(lpTotalSupply, b.config.LPTDecimals)
 	pricePerToken := tvl.Div(numTokens)
@@ -127,13 +127,13 @@ func (b *BeraBorrowLPPriceProvider) cicvTotalValue(ctx context.Context) (decimal
 
 	pricePerToken18, err := b.cdpContract.BeraBorrowCICVCaller.FetchPrice(opts)
 	if err != nil {
-		return decimal.Zero, err
+		return decimal.Zero, fmt.Errorf("failed to fetchPrice from beraborrow CICV contract, err: %w", err)
 	}
 	pricePerToken := NormalizeAmount(pricePerToken18, USDPriceDecimals)
 
 	cdpTotalSupply, err := b.cdpContract.BeraBorrowCICVCaller.TotalSupply(opts)
 	if err != nil {
-		return decimal.Zero, err
+		return decimal.Zero, fmt.Errorf("failed to get beraborrow total supply from CICV contract, err: %w", err)
 	}
 	numTokens := NormalizeAmount(cdpTotalSupply, b.config.CDPDecimals)
 

@@ -213,7 +213,7 @@ func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, e
 	ts, err := k.contract.TotalSupply(opts)
 	if err != nil {
 		k.logger.Error().Msgf("failed to obtain total supply for kodiak vault %s, %v", k.address.String(), err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get kodiak total supply, err: %w", err)
 	}
 
 	return ts, err
@@ -228,7 +228,7 @@ func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big
 	ubs, err := k.contract.GetUnderlyingBalances(opts)
 	if err != nil {
 		k.logger.Error().Msgf("failed to obtain underlying balances for kodiak vault %s, %v", k.address.String(), err)
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to get kodiak underlying balances, err: %w", err)
 	}
 	return ubs.Amount0Current, ubs.Amount1Current, err
 }

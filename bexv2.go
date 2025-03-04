@@ -211,7 +211,7 @@ func (b *BexV2LPPriceProvider) getUnderlyingBalances(ctx context.Context) (map[s
 	********************************************/
 	poolTokens, err := b.vaultContract.BalancerVaultCaller.GetPoolTokens(opts, b.config.PoolID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get pool tokens and balances from bex, err: %w", err)
 	}
 
 	var balanceData = make(map[string]*big.Int)

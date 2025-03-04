@@ -89,7 +89,7 @@ func (b *BexLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	// Fetch total supply from ERC20 interface
 	totalSupply, err := b.erc20Contract.ERC20Caller.TotalSupply(&bind.CallOpts{})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get bex total supply, err: %w", err)
 	}
 
 	// Avoid division by zero
@@ -254,7 +254,7 @@ func (b *BexLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.In
 	// pricePoint is a Q64.Q64 representation of the sqrt of price ratio in a *big.Int
 	pricePoint, err := b.queryContract.CrocQueryCaller.QueryPrice(opts, base, quote, poolIdx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to get bex query price of pool, err: %w", err)
 	}
 
 	numerator := decimal.NewFromBigInt(pricePoint, 0)
@@ -265,7 +265,7 @@ func (b *BexLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.In
 	// Liquidity is square root of the product of base pool supply and quote pool supply
 	liquidity, err := b.queryContract.CrocQueryCaller.QueryLiquidity(opts, base, quote, poolIdx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to get bex pool liquidity, err: %w", err)
 	}
 	b.logger.Info().Msgf("liquidity is %s", liquidity.String())
 	liquidityDecimal := decimal.NewFromBigInt(liquidity, 0)
