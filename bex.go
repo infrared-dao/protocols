@@ -113,7 +113,7 @@ func (b *BexLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 		Str("pricePerToken", pricePerToken.String()).
 		Msg("LP token price calculated successfully")
 
-	return pricePerToken.StringFixed(8), nil
+	return pricePerToken.StringFixed(roundingDecimals), nil
 }
 
 // TVL returns the Total Value Locked in the pool in USD cents (1 USD = 100 cents).
@@ -127,7 +127,7 @@ func (b *BexLPPriceProvider) TVL(ctx context.Context) (string, error) {
 		Str("totalValue", totalValue.String()).
 		Msg("TVL calculated successfully")
 
-	return totalValue.StringFixed(8), nil
+	return totalValue.StringFixed(roundingDecimals), nil
 }
 
 func (b *BexLPPriceProvider) GetConfig(ctx context.Context, address string, client *ethclient.Client) ([]byte, error) {

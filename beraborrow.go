@@ -18,6 +18,9 @@ import (
 // InfraredWrapper type tokens are the LP Token in this case
 // InfraredWrappers are 1-1 with the CompoundingInfraredCollateralVault token type
 
+// The fetchPrice() onchain call always returns a USD price with 18 decimals
+const USDPriceDecimals uint = 18
+
 // LPTDecimals are the decimals of the InfraredWrapper token
 // CDPDecimals are the decimals of the CompoundingInfraredCollateralVault token
 type BeraBorrowCDPConfig struct {
@@ -78,7 +81,6 @@ func (b *BeraBorrowLPPriceProvider) Initialize(ctx context.Context, client *ethc
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD
 func (b *BeraBorrowLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-
 	opts := &bind.CallOpts{
 		Pending:     false,
 		Context:     ctx,
@@ -102,23 +104,18 @@ func (b *BeraBorrowLPPriceProvider) LPTokenPrice(ctx context.Context) (string, e
 		Str("pricePerToken", pricePerToken.String()).
 		Msg("LP token price calculated successfully")
 
-	return pricePerToken.StringFixed(8), nil
+	return pricePerToken.StringFixed(roundingDecimals), nil
 }
 
 // TVL returns the Total Value Locked in the CDP in USD
 // Actually gets the TVL of the CICV which is 1-1 with the TVL of the IW which is the LP token
 func (b *BeraBorrowLPPriceProvider) TVL(ctx context.Context) (string, error) {
-
 	tvl, err := b.cicvTotalValue(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	//b.logger.Info().
-	//	Str("total value USD", tvl.String()).
-	//	Msg("TVL calculated successfully")
-
-	return tvl.StringFixed(8), nil
+	return tvl.StringFixed(roundingDecimals), nil
 }
 
 func (b *BeraBorrowLPPriceProvider) cicvTotalValue(ctx context.Context) (decimal.Decimal, error) {
@@ -132,7 +129,7 @@ func (b *BeraBorrowLPPriceProvider) cicvTotalValue(ctx context.Context) (decimal
 	if err != nil {
 		return decimal.Zero, err
 	}
-	pricePerToken := NormalizeAmount(pricePerToken18, uint(18))
+	pricePerToken := NormalizeAmount(pricePerToken18, USDPriceDecimals)
 
 	cdpTotalSupply, err := b.cdpContract.BeraBorrowCICVCaller.TotalSupply(opts)
 	if err != nil {

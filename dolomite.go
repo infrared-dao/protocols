@@ -94,7 +94,7 @@ func (d *DolomiteLPPriceProvider) LPTokenPrice(ctx context.Context) (string, err
 		Str("pricePerToken", price.String()).
 		Msg("LP token price calculated successfully")
 
-	return price.StringFixed(8), nil
+	return price.StringFixed(roundingDecimals), nil
 }
 
 func (d *DolomiteLPPriceProvider) TVL(ctx context.Context) (string, error) {
@@ -104,7 +104,7 @@ func (d *DolomiteLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	}
 
 	d.logger.Info().Str("tvl", totalValue.String()).Msg("successfully fetched TVL")
-	return totalValue.StringFixed(8), nil
+	return totalValue.StringFixed(roundingDecimals), nil
 }
 
 func (d *DolomiteLPPriceProvider) GetConfig(ctx context.Context, address string, ethClient *ethclient.Client) ([]byte, error) {
