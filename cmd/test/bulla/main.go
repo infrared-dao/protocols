@@ -16,8 +16,6 @@ import (
 )
 
 const (
-	// Real Bulla pool contract address
-	DefaultBullaPoolAddress = "0xcffbfd665bedb19b47837461a5abf4388c560d35" 
 	// Use appropriate RPC URL for your network
 	DefaultRpcURL = "https://rpc.berachain.com" 
 )
@@ -27,11 +25,16 @@ func main() {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
 
 	// Parse command-line arguments
-	addressArg := flag.String("address", DefaultBullaPoolAddress, "Bulla pool contract address")
+	addressArg := flag.String("address", "", "Smart contract address of Bulla pool") // No default, must be provided
 	rpcURLArg := flag.String("rpcurl", DefaultRpcURL, "RPC URL for the blockchain")
 	price0Arg := flag.String("price0", "1.0", "Price of token0 in USD")
 	price1Arg := flag.String("price1", "1.0", "Price of token1 in USD")
 	flag.Parse()
+
+	// Validate required arguments
+	if *addressArg == "" {
+		logger.Fatal().Msg("Missing required argument: -address <contract-address>")
+	}
 
 	// Parse price arguments
 	price0, err := decimal.NewFromString(*price0Arg)
