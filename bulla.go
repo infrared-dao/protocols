@@ -16,6 +16,11 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// The bulla abi given is a contract type called hypervisor which manages automated pools
+// For other non-automated pools we would need a slightly different adapter because the function
+// getPoolBalances wouldn't exist on those contract types, we could generalize to work across
+// all pools by looking at the reserves instead which has a helper call on the base Algrabra Pool
+
 // BullaConfig defines the configuration for Bulla Exchange adapter
 type BullaConfig struct {
 	Token0      string `json:"token0"`
@@ -56,7 +61,7 @@ func (b *BullaLPPriceProvider) Initialize(ctx context.Context, client *ethclient
 		b.logger.Error().Err(err).Msg("failed to deserialize config")
 		return err
 	}
-	
+
 	// Validate that we have price data for the tokens
 	_, ok := b.priceMap[b.config.Token0]
 	if !ok {
@@ -64,7 +69,7 @@ func (b *BullaLPPriceProvider) Initialize(ctx context.Context, client *ethclient
 		b.logger.Error().Msg(err.Error())
 		return err
 	}
-	
+
 	_, ok = b.priceMap[b.config.Token1]
 	if !ok {
 		err = fmt.Errorf("no price data found for token1 (%s)", b.config.Token1)
@@ -78,7 +83,7 @@ func (b *BullaLPPriceProvider) Initialize(ctx context.Context, client *ethclient
 		b.logger.Error().Err(err).Msg("failed to instantiate Bulla smart contract")
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -135,7 +140,7 @@ func (b *BullaLPPriceProvider) GetConfig(ctx context.Context, address string, cl
 		err = fmt.Errorf("invalid smart contract address, '%s'", address)
 		return nil, err
 	}
-	
+
 	contract, err := sc.NewBulla(common.HexToAddress(address), client)
 	if err != nil {
 		err = fmt.Errorf("failed to instantiate Bulla smart contract, %v", err)
@@ -148,7 +153,7 @@ func (b *BullaLPPriceProvider) GetConfig(ctx context.Context, address string, cl
 		Context: ctx,
 	}
 
-	// Token0 
+	// Token0
 	addr, err := contract.Token0(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to obtain token0 address for Bulla pool %s, %v", address, err)
@@ -193,7 +198,7 @@ func (b *BullaLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal,
 	if err != nil {
 		return decimal.Zero, err
 	}
-	
+
 	price1, err := b.getPrice(b.config.Token1)
 	if err != nil {
 		return decimal.Zero, err
@@ -204,9 +209,9 @@ func (b *BullaLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal,
 
 	value0 := amount0Decimal.Mul(price0.Price)
 	value1 := amount1Decimal.Mul(price1.Price)
-	
+
 	totalValue := value0.Add(value1)
-	
+
 	return totalValue, nil
 }
 
@@ -227,13 +232,13 @@ func (b *BullaLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, er
 		Pending: false,
 		Context: ctx,
 	}
-	
+
 	totalSupply, err := b.contract.TotalSupply(opts)
 	if err != nil {
 		b.logger.Error().Msgf("failed to obtain total supply for Bulla pool %s, %v", b.address.String(), err)
 		return nil, fmt.Errorf("failed to get Bulla total supply, err: %w", err)
 	}
-	
+
 	return totalSupply, nil
 }
 
@@ -243,13 +248,12 @@ func (b *BullaLPPriceProvider) getPoolBalances(ctx context.Context) (*big.Int, *
 		Pending: false,
 		Context: ctx,
 	}
-	
+
 	totalAmounts, err := b.contract.GetTotalAmounts(opts)
 	if err != nil {
 		b.logger.Error().Msgf("failed to obtain total amounts for Bulla pool %s, %v", b.address.String(), err)
 		return nil, nil, fmt.Errorf("failed to get Bulla total amounts, err: %w", err)
 	}
-	
+
 	return totalAmounts.Total0, totalAmounts.Total1, nil
 }
-
