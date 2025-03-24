@@ -28,6 +28,9 @@ build: codegen lint
 	rm -f $(BIN_DIR)/beraborrow
 	go build -o $(BIN_DIR)/beraborrow -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/beraborrow/main.go
+	rm -f $(BIN_DIR)/bulla
+	go build -o $(BIN_DIR)/bulla -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/bulla/main.go
 
 lint:
 	golangci-lint run
