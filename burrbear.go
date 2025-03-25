@@ -108,7 +108,7 @@ func (b *BurrBearLPPriceProvider) LPTokenPrice(ctx context.Context) (string, err
 	return pricePerToken.StringFixed(roundingDecimals), nil
 }
 
-// TVL returns the Total Value Locked in the protocol LP pool in USD cents (1 USD = 100 cents).
+// TVL returns the Total Value Locked in the protocol LP pool in USD.
 func (b *BurrBearLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	totalValue, err := b.totalValue(ctx)
 	if err != nil {
@@ -144,7 +144,7 @@ func (b *BurrBearLPPriceProvider) GetConfig(ctx context.Context, poolAddress str
 	// returns as [32]byte
 	poolId, err := poolContract.BalancerBasePoolCaller.GetPoolId(opts)
 	if err != nil {
-		err = fmt.Errorf("failed to obtain poolID for bex pool %s, %v", poolAddress, err)
+		err = fmt.Errorf("failed to obtain poolID for burrbear pool %s, %v", poolAddress, err)
 		return nil, err
 	}
 	bbc.PoolId = poolId

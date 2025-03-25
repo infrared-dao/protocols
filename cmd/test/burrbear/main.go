@@ -25,8 +25,20 @@ func main() {
 	vaultAddressArg := flag.String("contract", "", "Balancer vault contract address")
 	lpTokenArg := flag.String("address", "", "LP Token address")
 	pricesArg := flag.String("prices", "", "address:price:decimals, for each token. comma delimited list")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Ethereum RPC URL")
+	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain RPC URL")
 	flag.Parse()
+
+	// NECT-USDC-HONEY
+	// -contract 0xBE09E71BDc7b8a50A05F7291920590505e3C7744
+	// -address 0xd10e65a5f8ca6f835f2b1832e37cf150fb955f23
+	// -prices 0x1ce0a25d13ce4d52071ae7e02cf1f6606f4c79d3:0.9975:18,0x549943e04f40284185054145c6E4e9568C1D3241:1:6,0xFCBD14DC51f0A4d49d5E53C2E0950e0bC26d0Dce:0.9996:18
+	// -rpcurl https://rpc.berachain.com/
+
+	// 50NECT-50wgBERA
+	// -contract 0xBE09E71BDc7b8a50A05F7291920590505e3C7744
+	// -address 0xE416C064946112c1626D6700D1081a750B1B1Dd7
+	// -prices 0x1ce0a25d13ce4d52071ae7e02cf1f6606f4c79d3:0.9975:18,0xD77552D3849ab4D8C3b189A9582d0ba4C1F4f912:7.40:18
+	// -rpcurl https://rpc.berachain.com/
 
 	// Validate required arguments
 	missingArgs := []string{}
@@ -77,7 +89,7 @@ func main() {
 	cp := protocols.BurrBearLPPriceProvider{}
 	configBytes, err := cp.GetConfig(ctx, *lpTokenArg, client)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to get config for BexV2LPPriceProvider")
+		logger.Fatal().Err(err).Msg("Failed to get config for BurrBearLPPriceProvider")
 	}
 
 	// Create and initialize the LP price provider
@@ -92,12 +104,12 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to get LP token price")
 	}
-	logger.Info().Str("price", price).Msg("LP token price (USD cents)")
+	logger.Info().Str("price", price).Msg("LP token price (USD)")
 
 	// Get TVL
 	tvl, err := provider.TVL(ctx)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to get TVL")
 	}
-	logger.Info().Str("tvl", tvl).Msg("Total Value Locked (USD cents)")
+	logger.Info().Str("tvl", tvl).Msg("Total Value Locked (USD)")
 }
