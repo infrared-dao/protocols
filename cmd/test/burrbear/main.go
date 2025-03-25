@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/infrared-dao/protocols"
@@ -22,12 +22,10 @@ func main() {
 		Logger()
 
 	// Command-line arguments
-	vaultAddressArg := flag.String("vault", "", "Balancer vault contract address")
-	poolIdArg := flag.String("poolid", "", "Balancer pool ID")
-	price0Arg := flag.String("price0", "", "address:price of token 0, colon delimited")
-	price1Arg := flag.String("price1", "", "address:price of token 1, colon delimited")
-	price2Arg := flag.String("price2", "", "address:price of token 2, colon delimited (optional)")
-	rpcURLArg := flag.String("rpcurl", "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID", "Ethereum RPC URL")
+	vaultAddressArg := flag.String("contract", "", "Balancer vault contract address")
+	lpTokenArg := flag.String("address", "", "LP Token address")
+	pricesArg := flag.String("prices", "", "address:price:decimals, for each token. comma delimited list")
+	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Ethereum RPC URL")
 	flag.Parse()
 
 	// Validate required arguments
@@ -35,66 +33,37 @@ func main() {
 	if *vaultAddressArg == "" {
 		missingArgs = append(missingArgs, "vault")
 	}
-	if *poolIdArg == "" {
-		missingArgs = append(missingArgs, "poolid")
+	if *lpTokenArg == "" {
+		missingArgs = append(missingArgs, "address")
 	}
-	if *price0Arg == "" {
-		missingArgs = append(missingArgs, "price0")
-	}
-	if *price1Arg == "" {
-		missingArgs = append(missingArgs, "price1")
+	if *pricesArg == "" {
+		missingArgs = append(missingArgs, "prices")
 	}
 	if len(missingArgs) > 0 {
 		logger.Fatal().
 			Strs("missingArgs", missingArgs).
-			Str("usage", "go run main.go -vault <vault-address> -poolid <pool-id> -price0 <price0> -price1 <price1> [-price2 <price2>] -rpcurl <rpc-url>").
+			Str("usage", "go run main.go -contract <vault-address> -address <pool-address> -prices <token0:price0:decimals0,...> -rpcurl <rpc-url>").
 			Msg("Missing required arguments")
 	}
 
 	// Parse prices
-	p0data := strings.Split(*price0Arg, ":")
-	if len(p0data) != 2 {
-		logger.Fatal().Msgf("Invalid price0, '%s'", *price0Arg)
+	pdata := strings.Split(*pricesArg, ",")
+	if len(pdata) < 2 {
+		logger.Fatal().Msgf("Invalid or not enough prices, '%s'", *pricesArg)
 	}
-	price0, err := decimal.NewFromString(p0data[1])
-	if err != nil {
-		logger.Fatal().Err(err).Str("price0", *price0Arg).Msg("Invalid price0")
-	}
-	p1data := strings.Split(*price1Arg, ":")
-	if len(p1data) != 2 {
-		logger.Fatal().Msgf("Invalid price1, '%s'", *price1Arg)
-	}
-	price1, err := decimal.NewFromString(p1data[1])
-	if err != nil {
-		logger.Fatal().Err(err).Str("price1", *price1Arg).Msg("Invalid price1")
-	}
-
-	pmap := map[string]protocols.Price{
-		strings.ToLower(p0data[0]): {Decimals: 18, Price: price0},
-		strings.ToLower(p1data[0]): {Decimals: 18, Price: price1},
-	}
-
-	// Add optional third token price if provided
-	if *price2Arg != "" {
-		p2data := strings.Split(*price2Arg, ":")
-		if len(p2data) != 2 {
-			logger.Fatal().Msgf("Invalid price2, '%s'", *price2Arg)
-		}
-		price2, err := decimal.NewFromString(p2data[1])
+	var pmap = make(map[string]protocols.Price)
+	for _, data := range pdata {
+		parts := strings.Split(data, ":")
+		token := strings.ToLower(parts[0])
+		price, err := decimal.NewFromString(parts[1])
 		if err != nil {
-			logger.Fatal().Err(err).Str("price2", *price2Arg).Msg("Invalid price2")
+			logger.Fatal().Err(err).Str("price", data).Msg("Invalid price")
 		}
-		pmap[strings.ToLower(p2data[0])] = protocols.Price{Decimals: 18, Price: price2}
-	}
-
-	// Create BurrBear config
-	config := protocols.BurrBearConfig{
-		PoolId:      *poolIdArg,
-		LPTDecimals: 18,
-	}
-	configBytes, err := json.Marshal(config)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to marshal config")
+		decimals, err := strconv.Atoi(parts[2])
+		if err != nil {
+			logger.Fatal().Err(err).Str("decimals", data).Msg("Invalid decimals")
+		}
+		pmap[token] = protocols.Price{Decimals: uint(decimals), Price: price}
 	}
 
 	ctx := context.Background()
@@ -104,8 +73,15 @@ func main() {
 		logger.Fatal().Err(err).Str("rpcurl", *rpcURLArg).Msg("Failed to connect to Ethereum client")
 	}
 
+	// get the LP price provider config
+	cp := protocols.BurrBearLPPriceProvider{}
+	configBytes, err := cp.GetConfig(ctx, *lpTokenArg, client)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to get config for BexV2LPPriceProvider")
+	}
+
 	// Create and initialize the LP price provider
-	provider := protocols.NewBurrBearLPPriceProvider(common.HexToAddress(*vaultAddressArg), pmap, logger, configBytes)
+	provider := protocols.NewBurrBearLPPriceProvider(common.HexToAddress(*vaultAddressArg), common.HexToAddress(*lpTokenArg), pmap, logger, configBytes)
 	err = provider.Initialize(ctx, client)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize price provider")
@@ -119,9 +95,9 @@ func main() {
 	logger.Info().Str("price", price).Msg("LP token price (USD cents)")
 
 	// Get TVL
-	// tvl, err := provider.TVL(ctx)
-	// if err != nil {
-	// 	logger.Fatal().Err(err).Msg("Failed to get TVL")
-	// }
-	// logger.Info().Str("tvl", tvl).Msg("Total Value Locked (USD cents)")
+	tvl, err := provider.TVL(ctx)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to get TVL")
+	}
+	logger.Info().Str("tvl", tvl).Msg("Total Value Locked (USD cents)")
 }

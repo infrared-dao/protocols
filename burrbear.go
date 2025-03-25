@@ -18,26 +18,27 @@ import (
 
 // BurrBearConfig defines the configuration for a BurrBear pool
 type BurrBearConfig struct {
-	PoolId      string `json:"pool_id"`
-	LPTDecimals uint   `json:"lpt_decimals"`
+	PoolId      [32]byte `json:"pool_id"`
+	LPTDecimals uint     `json:"lpt_decimals"`
 }
 
 // BurrBearLPPriceProvider defines the provider for BurrBear LP price and Pool TVL.
 type BurrBearLPPriceProvider struct {
-	logger         zerolog.Logger
-	priceMap       map[string]Price
-	configBytes    []byte
-	config         *BurrBearConfig
-	vaultAddress   common.Address
-	vault          *sc.BalancerVault
-	lpTokenAddress common.Address
-	lpPool         *sc.BalancerBasePool
+	vaultAddress common.Address
+	poolAddress  common.Address
+	logger       zerolog.Logger
+	priceMap     map[string]Price
+	configBytes  []byte
+	config       *BurrBearConfig
+	vault        *sc.BalancerVault
+	lpPool       *sc.BalancerBasePool
 }
 
 // NewBurrBearLPPriceProvider creates a new instance of the BurrBearLPPriceProvider.
-func NewBurrBearLPPriceProvider(vaultAddress common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *BurrBearLPPriceProvider {
+func NewBurrBearLPPriceProvider(vaultAddress common.Address, poolAddress common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *BurrBearLPPriceProvider {
 	return &BurrBearLPPriceProvider{
 		vaultAddress: vaultAddress,
+		poolAddress:  poolAddress,
 		priceMap:     prices,
 		logger:       logger,
 		configBytes:  config,
@@ -62,30 +63,21 @@ func (b *BurrBearLPPriceProvider) Initialize(ctx context.Context, client *ethcli
 	}
 	b.vault = vault
 
-	// Get pool address from vault
-	poolId := common.HexToHash(config.PoolId)
-	poolAddress, _, err := vault.GetPool(&bind.CallOpts{Context: ctx, Pending: false}, poolId)
-	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to get pool address from vault")
-		return err
-	}
-
 	// Create Balancer pool contract instance
-	pool, err := sc.NewBalancerBasePool(poolAddress, client)
+	pool, err := sc.NewBalancerBasePool(b.poolAddress, client)
 	if err != nil {
 		b.logger.Error().Err(err).Msg("failed to instantiate Balancer pool contract")
 		return err
 	}
 	b.lpPool = pool
-	b.lpTokenAddress = poolAddress
 
 	return nil
 }
 
-// LPTokenPrice returns the current price of the protocol's LP token in USD cents (1 USD = 100 cents).
+// LPTokenPrice returns the current price of the protocol's LP token in USD.
 func (b *BurrBearLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	// Get total supply
-	totalSupply, err := b.lpPool.GetActualSupply(&bind.CallOpts{Context: ctx, Pending: false})
+	// Using GetActualSupply because this is how much is circulating for pools which lock up some LP tokens
+	totalSupply, err := b.lpPool.BalancerBasePoolCaller.GetActualSupply(&bind.CallOpts{Context: ctx, Pending: false})
 	if err != nil {
 		return "", fmt.Errorf("failed to get total supply: %w", err)
 	}
@@ -130,39 +122,73 @@ func (b *BurrBearLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return totalValue.StringFixed(roundingDecimals), nil
 }
 
-func (k *BurrBearLPPriceProvider) GetConfig(ctx context.Context, address string, client *ethclient.Client) ([]byte, error) {
-	return []byte{}, nil
+func (b *BurrBearLPPriceProvider) GetConfig(ctx context.Context, poolAddress string, client *ethclient.Client) ([]byte, error) {
+	var err error
+	if !common.IsHexAddress(poolAddress) {
+		err = fmt.Errorf("invalid smart contract address, '%s'", poolAddress)
+		return nil, err
+	}
+
+	poolContract, err := sc.NewBalancerBasePool(common.HexToAddress(poolAddress), client)
+	if err != nil {
+		b.logger.Error().Err(err).Msg("failed to instatiate Balancer Base Pool contract on LP Token")
+		return nil, err
+	}
+
+	bbc := BurrBearConfig{}
+	opts := &bind.CallOpts{
+		Pending: false,
+		Context: ctx,
+	}
+
+	// returns as [32]byte
+	poolId, err := poolContract.BalancerBasePoolCaller.GetPoolId(opts)
+	if err != nil {
+		err = fmt.Errorf("failed to obtain poolID for bex pool %s, %v", poolAddress, err)
+		return nil, err
+	}
+	bbc.PoolId = poolId
+
+	// decimals is uint8
+	decimals, err := poolContract.BalancerBasePoolCaller.Decimals(opts)
+	if err != nil {
+		err = fmt.Errorf("failed to obtain number of decimals for LP token %s, %v", poolAddress, err)
+		return nil, err
+	}
+	bbc.LPTDecimals = uint(decimals)
+
+	body, err := json.Marshal(bbc)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
 
 // totalValue calculates the total value of all assets in the pool
 func (b *BurrBearLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
-	poolId := common.HexToHash(b.config.PoolId)
 
 	// Get pool tokens and balances
-	poolTokens, err := b.vault.GetPoolTokens(&bind.CallOpts{Context: ctx, Pending: false}, poolId)
+	poolTokens, err := b.vault.BalancerVaultCaller.GetPoolTokens(&bind.CallOpts{Context: ctx, Pending: false}, b.config.PoolId)
 	if err != nil {
 		return decimal.Zero, fmt.Errorf("failed to get pool tokens: %w", err)
 	}
 
 	totalValue := decimal.Zero
-	for i, token := range poolTokens.Tokens {
-		// Get token price
-		if token.Hex() == b.lpTokenAddress.Hex() {
-			continue
-		}
+	for i, tokenAddress := range poolTokens.Tokens {
+		token := strings.ToLower(tokenAddress.Hex())
+
 		//verify this is always sound for all pool types
-		if token == b.lpTokenAddress {
+		if token == strings.ToLower(b.poolAddress.Hex()) {
 			// ignore when some of the LP token is locked in pool itself
 			// this is why should use actualSupply instead of totalSupply
 			continue
 		}
-		price, err := b.getPrice(token.Hex())
+
+		price, err := b.getPrice(token)
 		if err != nil {
 			return decimal.Zero, err
 		}
-		fmt.Println("Token:", token.Hex())
-		fmt.Println("Price:", price.Price)
-		fmt.Println("Decimals:", price.Decimals)
 
 		// Calculate token value
 		balance := poolTokens.Balances[i]
@@ -180,7 +206,7 @@ func (b *BurrBearLPPriceProvider) totalValue(ctx context.Context) (decimal.Decim
 
 // getPrice gets the price for a token from the price map
 func (b *BurrBearLPPriceProvider) getPrice(tokenAddress string) (*Price, error) {
-	price, ok := b.priceMap[strings.ToLower(tokenAddress)]
+	price, ok := b.priceMap[tokenAddress]
 	if !ok {
 		return nil, fmt.Errorf("price not found for token %s", tokenAddress)
 	}
