@@ -65,13 +65,13 @@ func (bb *BurrBearLPPriceProvider) Initialize(ctx context.Context, client *ethcl
 
 	bb.vaultContract, err = sc.NewBalancerVault(vaultAddress, client)
 	if err != nil {
-		bb.logger.Error().Err(err).Msg("failed to instatiate Balancer Vault contract")
+		bb.logger.Error().Err(err).Msg("failed to instantiate Balancer Vault contract")
 		return err
 	}
 
 	bb.poolContract, err = sc.NewBalancerBasePool(bb.poolAddress, client)
 	if err != nil {
-		bb.logger.Error().Err(err).Msg("failed to instatiate Balancer Base Pool contract on LP Token")
+		bb.logger.Error().Err(err).Msg("failed to instantiate Balancer Base Pool contract on LP Token")
 		return err
 	}
 	return nil
@@ -79,10 +79,6 @@ func (bb *BurrBearLPPriceProvider) Initialize(ctx context.Context, client *ethcl
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD
 func (bb *BurrBearLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-
-	// Fetch total supply from Balancer Base Pool which implements ERC20 interface
-	//totalSupply, err := b.poolContract.BalancerBasePoolCaller.TotalSupply(&bind.CallOpts{})
-
 	// Using GetActualSupply because this is how much is circulating for pools which lock up some LP tokens
 	totalSupply, err := bb.poolContract.BalancerBasePoolCaller.GetActualSupply(&bind.CallOpts{})
 	if err != nil {
@@ -132,13 +128,12 @@ func (bb *BurrBearLPPriceProvider) GetConfig(ctx context.Context, poolAddress st
 
 	poolContract, err := sc.NewBalancerBasePool(common.HexToAddress(poolAddress), client)
 	if err != nil {
-		bb.logger.Error().Err(err).Msg("failed to instatiate Balancer Base Pool contract on LP Token")
+		bb.logger.Error().Err(err).Msg("failed to instantiate Balancer Base Pool contract on LP Token")
 		return nil, err
 	}
 
 	bbpc := BurrBearPoolConfig{}
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 
@@ -212,7 +207,6 @@ func (bb *BurrBearLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getUnderlyingBalances fetches the underlying virtual token supply for each token.
 func (bb *BurrBearLPPriceProvider) getUnderlyingBalances(ctx context.Context) (map[string]*big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 

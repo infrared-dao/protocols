@@ -31,7 +31,7 @@ func main() {
 
 	// beraborrow pumpBTC
 	// beraborrow -address=0xB318Cd79dC0743De041A26D3F0d467d49955E5bC
-	//       -rpcurl=cartio-rpc-provider
+	//       -rpcurl=berachain-rpc-provider
 
 	// Validate required arguments
 	missingArgs := []string{}

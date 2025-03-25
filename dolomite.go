@@ -61,7 +61,7 @@ func (d *DolomiteLPPriceProvider) Initialize(ctx context.Context, client *ethcli
 
 	d.contract, err = sc.NewERC4626(d.address, client)
 	if err != nil {
-		d.logger.Error().Err(err).Msg("failed to instatiate Dolomite smart contract")
+		d.logger.Error().Err(err).Msg("failed to instantiate Dolomite smart contract")
 		return err
 	}
 
@@ -122,7 +122,6 @@ func (d *DolomiteLPPriceProvider) GetConfig(ctx context.Context, address string,
 
 	dc := &DolomiteConfig{}
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 
@@ -180,7 +179,6 @@ func (d *DolomiteLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getTotalSupply fetches the total supply of the LP token.
 func (d *DolomiteLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 	totalSupply, err := d.contract.TotalSupply(opts)
@@ -193,7 +191,6 @@ func (d *DolomiteLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int,
 
 func (d *DolomiteLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 

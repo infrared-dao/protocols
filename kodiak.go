@@ -68,7 +68,7 @@ func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclien
 
 	k.contract, err = sc.NewKodiakV1(k.address, client)
 	if err != nil {
-		k.logger.Error().Err(err).Msg("failed to instatiate KodiakV1 smart contract")
+		k.logger.Error().Err(err).Msg("failed to instantiate KodiakV1 smart contract")
 		return err
 	}
 	return nil
@@ -128,13 +128,12 @@ func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context, address string, c
 	}
 	contract, err := sc.NewKodiakV1(common.HexToAddress(address), client)
 	if err != nil {
-		err = fmt.Errorf("failed to instatiate KodiakV1 smart contract, %v", err)
+		err = fmt.Errorf("failed to instantiate KodiakV1 smart contract, %v", err)
 		return nil, err
 	}
 
 	kc := KodiakConfig{}
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 
@@ -207,7 +206,6 @@ func (k *KodiakLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getTotalSupply fetches the total supply of the LP token.
 func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 	ts, err := k.contract.TotalSupply(opts)
@@ -222,7 +220,6 @@ func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, e
 // getUnderlyingBalances fetches the underlying token balances.
 func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 	ubs, err := k.contract.GetUnderlyingBalances(opts)

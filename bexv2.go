@@ -58,13 +58,13 @@ func (b *BexV2LPPriceProvider) Initialize(ctx context.Context, client *ethclient
 
 	b.vaultContract, err = sc.NewBalancerVault(b.vaultAddress, client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instatiate Balancer Vault contract")
+		b.logger.Error().Err(err).Msg("failed to instantiate Balancer Vault contract")
 		return err
 	}
 
 	b.poolContract, err = sc.NewBalancerBasePool(b.poolAddress, client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instatiate Balancer Base Pool contract on LP Token")
+		b.logger.Error().Err(err).Msg("failed to instantiate Balancer Base Pool contract on LP Token")
 		return err
 	}
 	return nil
@@ -125,13 +125,12 @@ func (b *BexV2LPPriceProvider) GetConfig(ctx context.Context, poolAddress string
 
 	poolContract, err := sc.NewBalancerBasePool(common.HexToAddress(poolAddress), client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instatiate Balancer Base Pool contract on LP Token")
+		b.logger.Error().Err(err).Msg("failed to instantiate Balancer Base Pool contract on LP Token")
 		return nil, err
 	}
 
 	bpc := BexV2PoolConfig{}
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 
@@ -197,7 +196,6 @@ func (b *BexV2LPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getUnderlyingBalances fetches the underlying virtual token supply for each token.
 func (b *BexV2LPPriceProvider) getUnderlyingBalances(ctx context.Context) (map[string]*big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 

@@ -24,15 +24,15 @@ func main() {
 	// Command-line arguments
 	lpTokenArg := flag.String("address", "", "LP Token address, ie. bex pool address")
 	pricesArg := flag.String("prices", "", "address:price:decimals, for each token. comma delimited list")
-	rpcURLArg := flag.String("rpcurl", "https://  cartio-rpc-url", "Cartio Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", "https://  berachain-rpc-url", "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// NECT-USDC-HONEY composable stable pool
 	// burrbear -address=0xd10e65a5f8ca6f835f2b1832e37cf150fb955f23
-	//       -prices=-prices=0x1ce0a25d13ce4d52071ae7e02cf1f6606f4c79d3:1.0:18,
+	//       -prices=0x1ce0a25d13ce4d52071ae7e02cf1f6606f4c79d3:1.0:18,
 	// 					0x549943e04f40284185054145c6e4e9568c1d3241:1.0:6,
 	// 					0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0:18
-	//       -rpcurl=cartio-rpc-provider
+	//       -rpcurl=berachain-rpc-provider
 
 	// Validate required arguments
 	missingArgs := []string{}

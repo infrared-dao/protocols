@@ -65,14 +65,14 @@ func (b *BeraBorrowLPPriceProvider) Initialize(ctx context.Context, client *ethc
 	// Initialize the IW contract from the address in the inputs for the LP token address
 	b.lptContract, err = sc.NewBeraBorrowIW(b.LPTAddress, client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("adapter init failed to instatiate Infrared Wrapper contract")
+		b.logger.Error().Err(err).Msg("adapter init failed to instantiate Infrared Wrapper contract")
 		return err
 	}
 
 	// Initialize the CICV contract from the address in the config -- not the IW contract from the LP token address
 	b.cdpContract, err = sc.NewBeraBorrowCICV(common.HexToAddress(b.config.ColVaultAddress), client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("adapter init failed to instatiate Compounding Infrared Collateral Vault contract")
+		b.logger.Error().Err(err).Msg("adapter init failed to instantiate Compounding Infrared Collateral Vault contract")
 		return err
 	}
 
@@ -152,13 +152,12 @@ func (b *BeraBorrowLPPriceProvider) GetConfig(ctx context.Context, lpAddress str
 	bbcc := BeraBorrowCDPConfig{}
 
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 
 	iwContract, err := sc.NewBeraBorrowIW(common.HexToAddress(lpAddress), client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instatiate Infrared Wrapper contract on LP Token")
+		b.logger.Error().Err(err).Msg("failed to instantiate Infrared Wrapper contract on LP Token")
 		return nil, err
 	}
 
@@ -180,7 +179,7 @@ func (b *BeraBorrowLPPriceProvider) GetConfig(ctx context.Context, lpAddress str
 	// Initialize the CICV contract from address gotten from the IW contract
 	cdpContract, err := sc.NewBeraBorrowCICV(icvAddress, client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instatiate Compounding Infrared Collateral Vault contract for config")
+		b.logger.Error().Err(err).Msg("failed to instantiate Compounding Infrared Collateral Vault contract for config")
 		return nil, err
 	}
 

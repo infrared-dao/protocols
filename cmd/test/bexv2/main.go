@@ -25,7 +25,7 @@ func main() {
 	contractArg := flag.String("contract", "", "Balancer Vault contract address")
 	lpTokenArg := flag.String("address", "", "LP Token address, ie. bex pool address")
 	pricesArg := flag.String("prices", "", "address:price:decimals, for each token. comma delimited list")
-	rpcURLArg := flag.String("rpcurl", "https://  cartio-rpc-url", "Cartio Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", "https://  berchain-rpc-url", "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// BEXv2 has several different types of pools like weighted pools, stable pools, liq bootstrapping pools, managed pools, etc.
@@ -33,17 +33,17 @@ func main() {
 	// WBERA-HONEY weighted pool
 	// bexv2 -contract=0x9C8a5c82e797e074Fe3f121B326b140CEC4bcb33 -address=0x3aD1699779eF2c5a4600e649484402DFBd3c503C
 	//       -prices=0x6969696969696969696969696969696969696969:6.9:18,0xd137593CDB341CcC78426c54Fb98435C60Da193c:1.0:18
-	//       -rpcurl=cartio-rpc-provider
+	//       -rpcurl=berchain-rpc-provider
 
 	// WBERA-WBTC weighted pool
 	// bexv2 -contract=0x9C8a5c82e797e074Fe3f121B326b140CEC4bcb33 -address=0x4A782a6bA2e47367A4b2A1551815c27dc15F4795
 	//       -prices=0x6969696969696969696969696969696969696969:6.9:18,0xfa5bf670a92aff186e5176aa55690e0277010040:82172.7:8
-	//       -rpcurl=cartio-rpc-provider
+	//       -rpcurl=berchain-rpc-provider
 
 	// USDC-HONEY composable stable pool
 	// bexv2 -contract=0x9C8a5c82e797e074Fe3f121B326b140CEC4bcb33 -address=0xf7f214a9543c1153ef5df2edcd839074615f248c
 	//       -prices=0x015fd589f4f1a33ce4487e12714e1b15129c9329:1.044:6,0xd137593cdb341ccc78426c54fb98435c60da193c:1.0:18
-	//       -rpcurl=cartio-rpc-provider
+	//       -rpcurl=berchain-rpc-provider
 
 	// Validate required arguments
 	missingArgs := []string{}
