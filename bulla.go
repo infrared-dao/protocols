@@ -149,7 +149,6 @@ func (b *BullaLPPriceProvider) GetConfig(ctx context.Context, address string, cl
 
 	bc := BullaConfig{}
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 
@@ -229,7 +228,6 @@ func (b *BullaLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getTotalSupply fetches the total supply of the LP token
 func (b *BullaLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 
@@ -245,7 +243,6 @@ func (b *BullaLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, er
 // getPoolBalances fetches the base and quote token balances in the pool
 func (b *BullaLPPriceProvider) getPoolBalances(ctx context.Context) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 

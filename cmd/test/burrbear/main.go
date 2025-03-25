@@ -22,34 +22,20 @@ func main() {
 		Logger()
 
 	// Command-line arguments
-	contractArg := flag.String("contract", "", "Balancer Vault contract address")
 	lpTokenArg := flag.String("address", "", "LP Token address, ie. bex pool address")
 	pricesArg := flag.String("prices", "", "address:price:decimals, for each token. comma delimited list")
-	rpcURLArg := flag.String("rpcurl", "https://  berchain-rpc-url", "Mainnet Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", "https://  berachain-rpc-url", "Mainnet Berachain RPC URL")
 	flag.Parse()
 
-	// BEXv2 has several different types of pools like weighted pools, stable pools, liq bootstrapping pools, managed pools, etc.
-
-	// WBERA-HONEY weighted pool
-	// bexv2 -contract=0x9C8a5c82e797e074Fe3f121B326b140CEC4bcb33 -address=0x3aD1699779eF2c5a4600e649484402DFBd3c503C
-	//       -prices=0x6969696969696969696969696969696969696969:6.9:18,0xd137593CDB341CcC78426c54Fb98435C60Da193c:1.0:18
-	//       -rpcurl=berchain-rpc-provider
-
-	// WBERA-WBTC weighted pool
-	// bexv2 -contract=0x9C8a5c82e797e074Fe3f121B326b140CEC4bcb33 -address=0x4A782a6bA2e47367A4b2A1551815c27dc15F4795
-	//       -prices=0x6969696969696969696969696969696969696969:6.9:18,0xfa5bf670a92aff186e5176aa55690e0277010040:82172.7:8
-	//       -rpcurl=berchain-rpc-provider
-
-	// USDC-HONEY composable stable pool
-	// bexv2 -contract=0x9C8a5c82e797e074Fe3f121B326b140CEC4bcb33 -address=0xf7f214a9543c1153ef5df2edcd839074615f248c
-	//       -prices=0x015fd589f4f1a33ce4487e12714e1b15129c9329:1.044:6,0xd137593cdb341ccc78426c54fb98435c60da193c:1.0:18
-	//       -rpcurl=berchain-rpc-provider
+	// NECT-USDC-HONEY composable stable pool
+	// burrbear -address=0xd10e65a5f8ca6f835f2b1832e37cf150fb955f23
+	//       -prices=0x1ce0a25d13ce4d52071ae7e02cf1f6606f4c79d3:1.0:18,
+	// 					0x549943e04f40284185054145c6e4e9568c1d3241:1.0:6,
+	// 					0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0:18
+	//       -rpcurl=berachain-rpc-provider
 
 	// Validate required arguments
 	missingArgs := []string{}
-	if *contractArg == "" {
-		missingArgs = append(missingArgs, "contract")
-	}
 	if *lpTokenArg == "" {
 		missingArgs = append(missingArgs, "address")
 	}
@@ -59,7 +45,7 @@ func main() {
 	if len(missingArgs) > 0 {
 		logger.Fatal().
 			Strs("missingArgs", missingArgs).
-			Str("usage", "go run main.go -contract <vault-contract-address> -address <pool-address> -prices <token0:price0:decimals0,...> -rpcurl <rpc-url>").
+			Str("usage", "go run main.go -address <pool-address> -prices <token0:price0:decimals0,...> -rpcurl <rpc-url>").
 			Msg("Missing required arguments")
 	}
 
@@ -91,22 +77,21 @@ func main() {
 	}
 
 	// get the LP price provider config
-	cp := protocols.BexV2LPPriceProvider{}
+	cp := protocols.BurrBearLPPriceProvider{}
 	configBytes, err := cp.GetConfig(ctx, *lpTokenArg, client)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to get config for BexV2LPPriceProvider")
+		logger.Fatal().Err(err).Msg("Failed to get config for BurrBearLPPriceProvider")
 	}
 
 	// Parse the smart contract addresses
 	address := common.HexToAddress(*lpTokenArg)
-	contract := common.HexToAddress(*contractArg)
-	// Create a new BexV2LPPriceProvider
-	provider := protocols.NewBexV2LPPriceProvider(contract, address, pmap, logger, configBytes)
+	// Create a new BurrBearLPPriceProvider
+	provider := protocols.NewBurrBearLPPriceProvider(address, pmap, logger, configBytes)
 
 	// Initialize the provider
 	err = provider.Initialize(ctx, client)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to initialize BexV2LPPriceProvider")
+		logger.Fatal().Err(err).Msg("Failed to initialize BurrBearLPPriceProvider")
 	}
 
 	// Fetch LP token price

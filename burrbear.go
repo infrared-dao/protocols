@@ -16,68 +16,71 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-type BexV2PoolConfig struct {
-	PoolID      [32]byte `json:"poolid"`
-	LPTDecimals uint     `json:"lpt_decimals"`
+// BurrBear is based on BalancerV2 which is the same codebase which BEX uses on mainnet
+// Decided to implement it as a parallel code instead of a wrapper so it can get in config
+//  the VaultContract address off the contract itself so we don't need to pass this in as
+//  an env var like we originally did for BEX. This leads to different New function signature
+// It can use the same Balancer contracts so there are no new abi or smart contract bindings
+
+type BurrBearPoolConfig struct {
+	VaultContract string   `json:"vault_contract"`
+	PoolID        [32]byte `json:"poolid"`
+	LPTDecimals   uint     `json:"lpt_decimals"`
 }
 
-// BexLPPriceProvider defines the provider for BEX LP price and Pool TVL.
-type BexV2LPPriceProvider struct {
-	vaultAddress  common.Address
+// BurrBearLPPriceProvider defines the provider for BEX LP price and Pool TVL.
+type BurrBearLPPriceProvider struct {
 	poolAddress   common.Address
 	logger        zerolog.Logger
 	priceMap      map[string]Price
 	configBytes   []byte
-	config        *BexV2PoolConfig
+	config        *BurrBearPoolConfig
 	vaultContract *sc.BalancerVault
 	poolContract  *sc.BalancerBasePool
 }
 
-// NewBexLPPriceProvider creates a new instance of the BexLPPriceProvider.
-func NewBexV2LPPriceProvider(vaultAddress common.Address, poolAddress common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *BexV2LPPriceProvider {
-	b := &BexV2LPPriceProvider{
-		vaultAddress: vaultAddress,
-		poolAddress:  poolAddress,
-		logger:       logger,
-		priceMap:     prices,
-		configBytes:  config,
+// NewBurrBearLPPriceProvider creates a new instance of the BurrBearLPPriceProvider.
+func NewBurrBearLPPriceProvider(poolAddress common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *BurrBearLPPriceProvider {
+	b := &BurrBearLPPriceProvider{
+		poolAddress: poolAddress,
+		logger:      logger,
+		priceMap:    prices,
+		configBytes: config,
 	}
 	return b
 }
 
 // Initialize checks the configuration/data and instantiates the Vault and Base Pool contracts.
-func (b *BexV2LPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+func (bb *BurrBearLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
 	var err error
 
-	b.config = &BexV2PoolConfig{}
-	err = json.Unmarshal(b.configBytes, b.config)
+	bb.config = &BurrBearPoolConfig{}
+	err = json.Unmarshal(bb.configBytes, bb.config)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to deserialize config")
+		bb.logger.Error().Err(err).Msg("failed to deserialize config")
 		return err
 	}
 
-	b.vaultContract, err = sc.NewBalancerVault(b.vaultAddress, client)
+	vaultAddress := common.HexToAddress(bb.config.VaultContract)
+
+	bb.vaultContract, err = sc.NewBalancerVault(vaultAddress, client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instantiate Balancer Vault contract")
+		bb.logger.Error().Err(err).Msg("failed to instantiate Balancer Vault contract")
 		return err
 	}
 
-	b.poolContract, err = sc.NewBalancerBasePool(b.poolAddress, client)
+	bb.poolContract, err = sc.NewBalancerBasePool(bb.poolAddress, client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instantiate Balancer Base Pool contract on LP Token")
+		bb.logger.Error().Err(err).Msg("failed to instantiate Balancer Base Pool contract on LP Token")
 		return err
 	}
 	return nil
 }
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD
-func (b *BexV2LPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-
-	// Fetch total supply from Balancer Base Pool which implements ERC20 interface
-	//totalSupply, err := b.poolContract.BalancerBasePoolCaller.TotalSupply(&bind.CallOpts{})
-
+func (bb *BurrBearLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	// Using GetActualSupply because this is how much is circulating for pools which lock up some LP tokens
-	totalSupply, err := b.poolContract.BalancerBasePoolCaller.GetActualSupply(&bind.CallOpts{})
+	totalSupply, err := bb.poolContract.BalancerBasePoolCaller.GetActualSupply(&bind.CallOpts{})
 	if err != nil {
 		return "", err
 	}
@@ -85,19 +88,19 @@ func (b *BexV2LPPriceProvider) LPTokenPrice(ctx context.Context) (string, error)
 	// Avoid division by zero
 	if totalSupply.Sign() == 0 {
 		err := errors.New("totalSupply is zero, cannot calculate LP token price")
-		b.logger.Error().Err(err).Msg("Invalid totalSupply")
+		bb.logger.Error().Err(err).Msg("Invalid totalSupply")
 		return "", err
 	}
 
-	totalValue, err := b.totalValue(ctx)
+	totalValue, err := bb.totalValue(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	totalSupplyDecimal := NormalizeAmount(totalSupply, b.config.LPTDecimals)
+	totalSupplyDecimal := NormalizeAmount(totalSupply, bb.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
 
-	b.logger.Info().
+	bb.logger.Info().
 		Str("totalValue", totalValue.String()).
 		Str("totalSupply", totalSupplyDecimal.String()).
 		Str("pricePerToken", pricePerToken.String()).
@@ -107,8 +110,8 @@ func (b *BexV2LPPriceProvider) LPTokenPrice(ctx context.Context) (string, error)
 }
 
 // TVL returns the Total Value Locked in the pool in USD cents (1 USD = 100 cents).
-func (b *BexV2LPPriceProvider) TVL(ctx context.Context) (string, error) {
-	totalValue, err := b.totalValue(ctx)
+func (bb *BurrBearLPPriceProvider) TVL(ctx context.Context) (string, error) {
+	totalValue, err := bb.totalValue(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -116,7 +119,7 @@ func (b *BexV2LPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return totalValue.StringFixed(roundingDecimals), nil
 }
 
-func (b *BexV2LPPriceProvider) GetConfig(ctx context.Context, poolAddress string, client *ethclient.Client) ([]byte, error) {
+func (bb *BurrBearLPPriceProvider) GetConfig(ctx context.Context, poolAddress string, client *ethclient.Client) ([]byte, error) {
 	var err error
 	if !common.IsHexAddress(poolAddress) {
 		err = fmt.Errorf("invalid smart contract address, '%s'", poolAddress)
@@ -125,14 +128,22 @@ func (b *BexV2LPPriceProvider) GetConfig(ctx context.Context, poolAddress string
 
 	poolContract, err := sc.NewBalancerBasePool(common.HexToAddress(poolAddress), client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instantiate Balancer Base Pool contract on LP Token")
+		bb.logger.Error().Err(err).Msg("failed to instantiate Balancer Base Pool contract on LP Token")
 		return nil, err
 	}
 
-	bpc := BexV2PoolConfig{}
+	bbpc := BurrBearPoolConfig{}
 	opts := &bind.CallOpts{
 		Context: ctx,
 	}
+
+	// returns as common.Address, need to get a string for saving with Hex() call
+	vaultAddress, err := poolContract.BalancerBasePoolCaller.GetVault(opts)
+	if err != nil {
+		err = fmt.Errorf("failed to obtain poolID for bex pool %s, %v", poolAddress, err)
+		return nil, err
+	}
+	bbpc.VaultContract = vaultAddress.Hex()
 
 	// returns as [32]byte
 	poolID, err := poolContract.BalancerBasePoolCaller.GetPoolId(opts)
@@ -140,7 +151,7 @@ func (b *BexV2LPPriceProvider) GetConfig(ctx context.Context, poolAddress string
 		err = fmt.Errorf("failed to obtain poolID for bex pool %s, %v", poolAddress, err)
 		return nil, err
 	}
-	bpc.PoolID = poolID
+	bbpc.PoolID = poolID
 
 	// decimals is uint8
 	decimals, err := poolContract.BalancerBasePoolCaller.Decimals(opts)
@@ -148,9 +159,9 @@ func (b *BexV2LPPriceProvider) GetConfig(ctx context.Context, poolAddress string
 		err = fmt.Errorf("failed to obtain number of decimals for LP token %s, %v", poolAddress, err)
 		return nil, err
 	}
-	bpc.LPTDecimals = uint(decimals)
+	bbpc.LPTDecimals = uint(decimals)
 
-	body, err := json.Marshal(bpc)
+	body, err := json.Marshal(bbpc)
 	if err != nil {
 		return nil, err
 	}
@@ -158,21 +169,21 @@ func (b *BexV2LPPriceProvider) GetConfig(ctx context.Context, poolAddress string
 	return body, nil
 }
 
-func (b *BexV2LPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
+func (bb *BurrBearLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
 	var err error
 
 	// Fetch underlying balances as map[string]*big.Int
-	balanceData, err := b.getUnderlyingBalances(ctx)
+	balanceData, err := bb.getUnderlyingBalances(ctx)
 	if err != nil {
 		return decimal.Zero, err
 	}
 
-	b.logger.Info().
+	bb.logger.Info().
 		Msgf("Token Balances: %+v", balanceData)
 
 	totalValue := decimal.Zero
 	for token, balance := range balanceData {
-		price, err := b.getPrice(token)
+		price, err := bb.getPrice(token)
 		if err != nil {
 			return decimal.Zero, err
 		}
@@ -183,18 +194,18 @@ func (b *BexV2LPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal,
 	return totalValue, nil
 }
 
-func (b *BexV2LPPriceProvider) getPrice(tokenKey string) (*Price, error) {
-	price, ok := b.priceMap[tokenKey]
+func (bb *BurrBearLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
+	price, ok := bb.priceMap[tokenKey]
 	if !ok {
 		err := fmt.Errorf("no price data found for token (%s)", tokenKey)
-		b.logger.Error().Msg(err.Error())
+		bb.logger.Error().Msg(err.Error())
 		return nil, err
 	}
 	return &price, nil
 }
 
 // getUnderlyingBalances fetches the underlying virtual token supply for each token.
-func (b *BexV2LPPriceProvider) getUnderlyingBalances(ctx context.Context) (map[string]*big.Int, error) {
+func (bb *BurrBearLPPriceProvider) getUnderlyingBalances(ctx context.Context) (map[string]*big.Int, error) {
 	opts := &bind.CallOpts{
 		Context: ctx,
 	}
@@ -207,7 +218,7 @@ func (b *BexV2LPPriceProvider) getUnderlyingBalances(ctx context.Context) (map[s
 			LastChangeBlock *big.Int
 		}
 	********************************************/
-	poolTokens, err := b.vaultContract.BalancerVaultCaller.GetPoolTokens(opts, b.config.PoolID)
+	poolTokens, err := bb.vaultContract.BalancerVaultCaller.GetPoolTokens(opts, bb.config.PoolID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pool tokens and balances from bex, err: %w", err)
 	}
@@ -217,7 +228,7 @@ func (b *BexV2LPPriceProvider) getUnderlyingBalances(ctx context.Context) (map[s
 		token := strings.ToLower(tokenAddress.Hex())
 
 		//verify this is always sound for all pool types
-		if token == strings.ToLower(b.poolAddress.Hex()) {
+		if token == strings.ToLower(bb.poolAddress.Hex()) {
 			// ignore when some of the LP token is locked in pool itself
 			// this is why should use actualSupply instead of totalSupply
 			continue

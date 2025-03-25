@@ -72,13 +72,13 @@ func (b *BexLPPriceProvider) Initialize(ctx context.Context, client *ethclient.C
 
 	b.queryContract, err = sc.NewCrocQuery(b.queryAddress, client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instatiate CrocQuery smart contract")
+		b.logger.Error().Err(err).Msg("failed to instantiate CrocQuery smart contract")
 		return err
 	}
 
 	b.erc20Contract, err = sc.NewERC20(b.lpTokenAddress, client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instatiate ERC20 smart contract on LP Token")
+		b.logger.Error().Err(err).Msg("failed to instantiate ERC20 smart contract on LP Token")
 		return err
 	}
 	return nil
@@ -139,19 +139,18 @@ func (b *BexLPPriceProvider) GetConfig(ctx context.Context, address string, clie
 
 	erc20Contract, err := sc.NewERC20(common.HexToAddress(address), client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instatiate ERC20 smart contract on LP Token")
+		b.logger.Error().Err(err).Msg("failed to instantiate ERC20 smart contract on LP Token")
 		return nil, err
 	}
 
 	crocLPERC20Contract, err := sc.NewCrocLPERC20(common.HexToAddress(address), client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instatiate CrocLPERC20 smart contract on LP Token")
+		b.logger.Error().Err(err).Msg("failed to instantiate CrocLPERC20 smart contract on LP Token")
 		return nil, err
 	}
 
 	bpc := BexPoolConfig{}
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 
@@ -233,7 +232,6 @@ func (b *BexLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getUnderlyingBalances fetches the underlying virtual token supply for each token.
 func (b *BexLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
-		Pending: false,
 		Context: ctx,
 	}
 
