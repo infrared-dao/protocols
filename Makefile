@@ -53,3 +53,4 @@ codegen:
 	abigen --abi assets/abis/beraborrowiw.abi --pkg sc --type BeraBorrowIW --out internal/sc/beraborrow_iw.go
 	abigen --abi assets/abis/beraborrowcicv.abi --pkg sc --type BeraBorrowCICV --out internal/sc/beraborrow_cicv.go
 	abigen --abi assets/abis/bulla.abi --pkg sc --type Bulla --out internal/sc/bulla.go
+	abigen --abi assets/abis/aquabera.abi --pkg sc --type AquaBera --out internal/sc/aquabera.go
