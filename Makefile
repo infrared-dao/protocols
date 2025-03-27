@@ -33,7 +33,10 @@ build: codegen lint
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/bulla/main.go
 	rm -f $(BIN_DIR)/burrbear
 	go build -o $(BIN_DIR)/burrbear -v -ldflags \
-		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/burrbear/main.go		
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/burrbear/main.go	
+	rm -f $(BIN_DIR)/aquabera
+	go build -o $(BIN_DIR)/aquabera -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/aquabera/main.go		
 
 lint:
 	golangci-lint run
