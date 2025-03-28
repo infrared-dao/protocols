@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 
@@ -24,8 +26,22 @@ func main() {
 	addressArg := flag.String("address", "", "Smart contract address")
 	price0Arg := flag.String("price0", "", "address:price of token 0, colon delimited")
 	price1Arg := flag.String("price1", "", "address:price of token 1, colon delimited")
-	rpcURLArg := flag.String("rpcurl", "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID", "Ethereum RPC URL")
+	rpcURLArg := flag.String("rpcurl", "https://berchain-rpc-url", "Mainnet Berachain RPC URL")
 	flag.Parse()
+
+	// The kodiak adapter can handle both V3 Island and V2 Pool contracts in address
+
+	// OHM-HONEY Kodiak V3 Island
+	// kodiak -address=0x98bdeede9a45c28d229285d9d6e9139e9f505391
+	// 			-price0=0x18878Df23e2a36f81e820e4b47b4A40576D3159C:26.32
+	// 			-price1=0xFCBD14DC51f0A4d49d5E53C2E0950e0bC26d0Dce:1.0
+	//			-rpcurl=berchain-rpc-provider
+
+	// HOLD-WBERA Kodiak V2 Pool
+	// kodiak -address=0xdca120bd3a13250b67f6faa5c29c1f38ec6ebece
+	// 			-price0=0xff0a636dfc44bb0129b631cdd38d21b613290c98:1.446
+	// 			-price1=0x6969696969696969696969696969696969696969:8.66
+	//			-rpcurl=berchain-rpc-provider
 
 	// Validate required arguments
 	missingArgs := []string{}
@@ -41,7 +57,7 @@ func main() {
 	if len(missingArgs) > 0 {
 		logger.Fatal().
 			Strs("missingArgs", missingArgs).
-			Str("usage", "go run main.go -address <contract-address> -abipath <path-to-abi> -price0 <price0> -price1 <price1> -rpcurl <rpc-url>").
+			Str("usage", "go run main.go -address <contract-address> -price0 <price0> -price1 <price1> -rpcurl <rpc-url>").
 			Msg("Missing required arguments")
 	}
 
@@ -81,6 +97,15 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to get config for KodiakLPPriceProvider")
 	}
+
+	configData := &protocols.KodiakConfig{}
+	err = json.Unmarshal(configBytes, configData)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to deserialize config")
+	}
+	logger.Info().
+		Str("Kodiak Config Data", fmt.Sprintf("%+v", configData)).
+		Msg("successfully created Kodiak Config")
 
 	// Parse the smart contract address
 	address := common.HexToAddress(*addressArg)

@@ -30,6 +30,7 @@ type KodiakLPPriceProvider struct {
 	configBytes []byte
 	config      *KodiakConfig
 	contract    *sc.KodiakV1
+	contractV2  *sc.UniswapV2
 }
 
 // NewKodiakLPPriceProvider creates a new instance of the KodiakLPPriceProvider.
@@ -46,6 +47,9 @@ func NewKodiakLPPriceProvider(address common.Address, prices map[string]Price, l
 // Initialize checks the configuration/data provided and instantiates the KodiakV1 smart contract.
 func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
 	var err error
+	opts := &bind.CallOpts{
+		Context: ctx,
+	}
 
 	k.config = &KodiakConfig{}
 	err = json.Unmarshal(k.configBytes, k.config)
@@ -68,9 +72,21 @@ func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclien
 
 	k.contract, err = sc.NewKodiakV1(k.address, client)
 	if err != nil {
-		k.logger.Error().Err(err).Msg("failed to instantiate KodiakV1 smart contract")
+		k.logger.Error().Err(err).Msg("failed to instantiate V3 Kodiak Island smart contract")
 		return err
 	}
+
+	// Try to call the version() function... if error then not an Island V3 contract
+	_, err = k.contract.Version(opts)
+	if err != nil {
+		// If not a V3 Island, initialize it as a Kodiak V2 Pool
+		k.contractV2, err = sc.NewUniswapV2(k.address, client)
+		if err != nil {
+			k.logger.Error().Err(err).Msg("failed to instantiate V2 Kodiak Pool smart contract")
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -222,10 +238,20 @@ func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big
 	opts := &bind.CallOpts{
 		Context: ctx,
 	}
-	ubs, err := k.contract.GetUnderlyingBalances(opts)
-	if err != nil {
-		k.logger.Error().Msgf("failed to obtain underlying balances for kodiak vault %s, %v", k.address.String(), err)
-		return nil, nil, fmt.Errorf("failed to get kodiak underlying balances, err: %w", err)
+
+	if k.contractV2 == nil { // V3 Island or Pool Logic
+		ubs, err := k.contract.GetUnderlyingBalances(opts)
+		if err != nil {
+			k.logger.Error().Msgf("failed to obtain underlying balances for kodiak island %s, %v", k.address.String(), err)
+			return nil, nil, fmt.Errorf("failed to get kodiak island underlying balances, err: %w", err)
+		}
+		return ubs.Amount0Current, ubs.Amount1Current, err
+	} else { // V2 Pool Logic
+		reserves, err := k.contractV2.GetReserves(opts)
+		if err != nil {
+			k.logger.Error().Msgf("failed to obtain reserve balances for kodiak V2 pool %s, %v", k.address.String(), err)
+			return nil, nil, fmt.Errorf("failed to get kodiak V2 pool reserves, err: %w", err)
+		}
+		return reserves.Reserve0, reserves.Reserve1, err
 	}
-	return ubs.Amount0Current, ubs.Amount1Current, err
 }

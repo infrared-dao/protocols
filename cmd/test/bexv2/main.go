@@ -25,7 +25,7 @@ func main() {
 	contractArg := flag.String("contract", "", "Balancer Vault contract address")
 	lpTokenArg := flag.String("address", "", "LP Token address, ie. bex pool address")
 	pricesArg := flag.String("prices", "", "address:price:decimals, for each token. comma delimited list")
-	rpcURLArg := flag.String("rpcurl", "https://  berchain-rpc-url", "Mainnet Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", "https://berchain-rpc-url", "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// BEXv2 has several different types of pools like weighted pools, stable pools, liq bootstrapping pools, managed pools, etc.
