@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -137,4 +138,18 @@ func main() {
 			Str("TVL (USD)", tvl).
 			Msg("successfully fetched TVL")
 	}
+
+	// Test Offchain Kodiak API for fetching average pool APR
+	stakingTokens := []string{
+		"0x98bdeede9a45c28d229285d9d6e9139e9f505391",
+		"0x8b161685135e9fbc5475169e1addc0f2c4b7c343",
+		"0xec8ba456b4e009408d0776cde8b91f8717d13fa1",
+		"0xdca120bd3a13250b67f6faa5c29c1f38ec6ebece",
+	}
+	kodiakAPRs, err := fetchers.FetchKodiakAPRs(stakingTokens)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("bad response from kodiak API")
+	}
+	logger.Info().
+		Msgf("fetched kodiak average APRs from API %+v", kodiakAPRs)
 }
