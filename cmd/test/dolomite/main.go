@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -96,5 +97,18 @@ func main() {
 			Str("TVL (USD)", tvl).
 			Msg("successfully fetched TVL")
 	}
+
+	// Test Offchain Dolomite API for fetching supply asset APR
+	underlyingTokens := []string{
+		"0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce", // HONEY
+		"0x0555e30da8f98308edb960aa94c0db47230d2b9c", // WBTC
+		"0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590", // WETH
+	}
+	dolomiteAPRs, err := fetchers.FetchDolomiteAPRs(underlyingTokens)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("bad response from dolomite API")
+	}
+	logger.Info().
+		Msgf("fetched dolomite staking APRs from API %+v", dolomiteAPRs)
 
 }

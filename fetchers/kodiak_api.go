@@ -16,7 +16,7 @@ import (
 
 const (
 	kodiakAPI    = "https://api.goldsky.com/api/public/project_clpx84oel0al201r78jsl0r3i/subgraphs/kodiak-v3-berachain-mainnet/latest/gn"
-	queryAPRs    = `{ kodiakAprs(where: {id_in: [\"%s\"]}) { id, averageApr, timestamp } }`
+	kodiakQuery  = `{ kodiakAprs(where: {id_in: [\"%s\"]}) { id, averageApr, timestamp } }`
 	ageThreshold = 14400 // 4 hours, averageAPR observations older than this will be ignored
 )
 
@@ -41,7 +41,7 @@ func FetchKodiakAPRs(stakingTokens []string) (map[string]decimal.Decimal, error)
 		stakingTokens[idx] = strings.ToLower(tokenAddress)
 	}
 	tokensFilter := strings.Join(stakingTokens, `\", \"`)
-	query := fmt.Sprintf(queryAPRs, tokensFilter)
+	query := fmt.Sprintf(kodiakQuery, tokensFilter)
 	jsonQuery := []byte(`{"query": "` + query + `"}`)
 
 	request, err := http.NewRequest("POST", kodiakAPI, bytes.NewBuffer(jsonQuery))
