@@ -37,6 +37,8 @@ build: codegen lint
 	rm -f $(BIN_DIR)/aquabera
 	go build -o $(BIN_DIR)/aquabera -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/aquabera/main.go		
+	go build -o $(BIN_DIR)/d8x -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/d8x/main.go		
 
 lint:
 	golangci-lint run
@@ -58,3 +60,6 @@ codegen:
 	abigen --abi assets/abis/beraborrowcicv.abi --pkg sc --type BeraBorrowCICV --out internal/sc/beraborrow_cicv.go
 	abigen --abi assets/abis/bulla.abi --pkg sc --type Bulla --out internal/sc/bulla.go
 	abigen --abi assets/abis/aquabera.abi --pkg sc --type AquaBera --out internal/sc/aquabera.go
+	abigen --abi assets/abis/d8x.abi --pkg sc --type D8x --out internal/sc/d8x.go
+	abigen --abi assets/abis/aggregatorV3interface.abi --pkg sc --type AggregatorV3 --out internal/sc/aggregatorV3.go
+	
