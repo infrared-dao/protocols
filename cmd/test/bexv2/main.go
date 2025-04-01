@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/shopspring/decimal"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -128,4 +129,18 @@ func main() {
 			Str("TVL (USD)", tvl).
 			Msg("successfully fetched TVL")
 	}
+
+	// Test Offchain BEX API for fetching current pool APR
+	stakingTokens := []string{
+		"0x1207c619086a52edef4a4b7af881b5ddd367a919",
+		"0xdd70a5ef7d8cfe5c5134b5f9874b09fb5ce812b4",
+		"0x2461e93d5963c2bb69de499676763e67a63c7ba5",
+		"0x62c030b29a6fef1b32677499e4a1f1852a8808c0",
+	}
+	bexAPRs, err := fetchers.FetchBexAPRs(stakingTokens)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("bad response from bex API")
+	}
+	logger.Info().
+		Msgf("fetched bex APRs from API %+v", bexAPRs)
 }

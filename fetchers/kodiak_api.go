@@ -70,12 +70,17 @@ func FetchKodiakAPRs(stakingTokens []string) (map[string]decimal.Decimal, error)
 		return nil, err
 	}
 
+	scalePercent := decimal.NewFromFloat(100.0)
+
 	kodiakAPRs := make(map[string]decimal.Decimal)
 	for _, aprData := range results.Data.APRs {
 		avgAPR, err := decimal.NewFromString(aprData.APR)
 		if err != nil {
 			continue // don't error if there are other results we could process
 		}
+
+		// Kodiak API returns literal percents but we divide by 100 for consistency
+		avgAPR = avgAPR.Div(scalePercent)
 
 		unixTimeInt, err := strconv.ParseInt(aprData.Timestamp, 10, 64)
 		if err != nil {
