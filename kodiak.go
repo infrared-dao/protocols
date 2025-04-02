@@ -16,6 +16,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var _ Protocol = &KodiakLPPriceProvider{}
+
 type KodiakConfig struct {
 	Token0      string `json:"token0"`
 	Token1      string `json:"token1"`
@@ -34,7 +36,12 @@ type KodiakLPPriceProvider struct {
 }
 
 // NewKodiakLPPriceProvider creates a new instance of the KodiakLPPriceProvider.
-func NewKodiakLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *KodiakLPPriceProvider {
+func NewKodiakLPPriceProvider(
+	address common.Address,
+	prices map[string]Price,
+	logger zerolog.Logger,
+	config []byte,
+) *KodiakLPPriceProvider {
 	k := &KodiakLPPriceProvider{
 		address:     address,
 		logger:      logger,

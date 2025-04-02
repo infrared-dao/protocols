@@ -16,6 +16,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var _ Protocol = &BexLPPriceProvider{}
+
 type BexPoolConfig struct {
 	Base        string `json:"base"`
 	Quote       string `json:"quote"`
@@ -36,7 +38,13 @@ type BexLPPriceProvider struct {
 }
 
 // NewBexLPPriceProvider creates a new instance of the BexLPPriceProvider.
-func NewBexLPPriceProvider(crocqueryAddress common.Address, lpTokenAddress common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *BexLPPriceProvider {
+func NewBexLPPriceProvider(
+	crocqueryAddress common.Address,
+	lpTokenAddress common.Address,
+	prices map[string]Price,
+	logger zerolog.Logger,
+	config []byte,
+) *BexLPPriceProvider {
 	b := &BexLPPriceProvider{
 		queryAddress:   crocqueryAddress,
 		lpTokenAddress: lpTokenAddress,

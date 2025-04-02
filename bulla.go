@@ -16,6 +16,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var _ Protocol = &BullaLPPriceProvider{}
+
 // The bulla abi given is a contract type called hypervisor which manages automated pools
 // For other non-automated pools we would need a slightly different adapter because the function
 // getPoolBalances wouldn't exist on those contract types, we could generalize to work across
@@ -41,7 +43,12 @@ type BullaLPPriceProvider struct {
 }
 
 // NewBullaLPPriceProvider creates a new instance of the BullaLPPriceProvider.
-func NewBullaLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *BullaLPPriceProvider {
+func NewBullaLPPriceProvider(
+	address common.Address,
+	prices map[string]Price,
+	logger zerolog.Logger,
+	config []byte,
+) *BullaLPPriceProvider {
 	b := &BullaLPPriceProvider{
 		address:     address,
 		logger:      logger,
