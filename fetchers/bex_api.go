@@ -14,8 +14,9 @@ import (
 
 const (
 	bexAPI   = "https://api.berachain.com/"
-	bexQuery = `{ poolGetPools(first: 1000) { address, dynamicData { aprItems { apr } } } }`
-	// There are currently less than 300 BEX pools, can get 1000 per page.... future todo: add paging logic
+	bexQuery = `{ poolGetPools(first: 10000) { address, dynamicData { aprItems { apr } } } }`
+	// There are currently less than 300 BEX pools, can get 10000 per page....
+	// TODO: add paging logic when number of BEX pools gets close
 )
 
 type bexPool struct {
@@ -69,6 +70,12 @@ func FetchBexAPRs(ctx context.Context, stakingTokens []string) (map[string]decim
 	err = json.Unmarshal(responseJSON, &results)
 	if err != nil {
 		return nil, err
+	}
+
+	// log a warning as we get close to page limit but continue processing
+	if len(results.Data.Pools) > 9000 {
+		err = fmt.Errorf("over 9000 bex pools found, approaching limit")
+		log.Error().Msg(err.Error())
 	}
 
 	bexAPRs := make(map[string]decimal.Decimal)
