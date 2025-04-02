@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -23,9 +24,9 @@ func main() {
 		Logger()
 
 	// Command-line arguments
-	addressArg := flag.String("address", "", "Smart contract address")
-	price0Arg := flag.String("price0", "", "address:price of token 0, colon delimited")
-	price1Arg := flag.String("price1", "", "address:price of token 1, colon delimited")
+	addressArg := flag.String("address", "0x98bdeede9a45c28d229285d9d6e9139e9f505391", "Smart contract address")
+	price0Arg := flag.String("price0", "0x18878Df23e2a36f81e820e4b47b4A40576D3159C:26.32", "address:price of token 0")
+	price1Arg := flag.String("price1", "0xFCBD14DC51f0A4d49d5E53C2E0950e0bC26d0Dce:1.0", "address:price of token 1")
 	rpcURLArg := flag.String("rpcurl", "https://berchain-rpc-url", "Mainnet Berachain RPC URL")
 	flag.Parse()
 
@@ -137,4 +138,18 @@ func main() {
 			Str("TVL (USD)", tvl).
 			Msg("successfully fetched TVL")
 	}
+
+	// Test Offchain Kodiak API for fetching average pool APR
+	stakingTokens := []string{
+		"0x98bdeede9a45c28d229285d9d6e9139e9f505391",
+		"0x8b161685135e9fbc5475169e1addc0f2c4b7c343",
+		"0xec8ba456b4e009408d0776cde8b91f8717d13fa1",
+		"0xdca120bd3a13250b67f6faa5c29c1f38ec6ebece",
+	}
+	kodiakAPRs, err := fetchers.FetchKodiakAPRs(ctx, stakingTokens)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("bad response from kodiak API")
+	}
+	logger.Info().
+		Msgf("fetched kodiak average APRs from API %+v", kodiakAPRs)
 }

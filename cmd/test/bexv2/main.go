@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/shopspring/decimal"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -21,29 +22,28 @@ func main() {
 		Timestamp().
 		Logger()
 
+	examplePricesArg := "0x6969696969696969696969696969696969696969:6.9:18,0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0:18"
+
 	// Command-line arguments
-	contractArg := flag.String("contract", "", "Balancer Vault contract address")
-	lpTokenArg := flag.String("address", "", "LP Token address, ie. bex pool address")
-	pricesArg := flag.String("prices", "", "address:price:decimals, for each token. comma delimited list")
+	contractArg := flag.String("contract", "0x4Be03f781C497A489E3cB0287833452cA9B9E80B", "Balancer Vault contract address")
+	lpTokenArg := flag.String("address", "0x2c4a603a2aa5596287a06886862dc29d56dbc354", "LP Token address, ie. bex pool address")
+	pricesArg := flag.String("prices", examplePricesArg, "address:price:decimals, for each token. comma delimited list")
 	rpcURLArg := flag.String("rpcurl", "https://berchain-rpc-url", "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// BEXv2 has several different types of pools like weighted pools, stable pools, liq bootstrapping pools, managed pools, etc.
 
 	// WBERA-HONEY weighted pool
-	// bexv2 -contract=0x9C8a5c82e797e074Fe3f121B326b140CEC4bcb33 -address=0x3aD1699779eF2c5a4600e649484402DFBd3c503C
-	//       -prices=0x6969696969696969696969696969696969696969:6.9:18,0xd137593CDB341CcC78426c54Fb98435C60Da193c:1.0:18
-	//       -rpcurl=berchain-rpc-provider
+	// bexv2 -contract=0x4Be03f781C497A489E3cB0287833452cA9B9E80B -address=0x2c4a603a2aa5596287a06886862dc29d56dbc354
+	//       -prices=0x6969696969696969696969696969696969696969:6.9:18,0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0:18
 
 	// WBERA-WBTC weighted pool
-	// bexv2 -contract=0x9C8a5c82e797e074Fe3f121B326b140CEC4bcb33 -address=0x4A782a6bA2e47367A4b2A1551815c27dc15F4795
-	//       -prices=0x6969696969696969696969696969696969696969:6.9:18,0xfa5bf670a92aff186e5176aa55690e0277010040:82172.7:8
-	//       -rpcurl=berchain-rpc-provider
+	// bexv2 -contract=0x4Be03f781C497A489E3cB0287833452cA9B9E80B -address=0x38fdd999fe8783037db1bbfe465759e312f2d809
+	//       -prices=0x6969696969696969696969696969696969696969:6.9:18,0x0555e30da8f98308edb960aa94c0db47230d2b9c:82172.7:8
 
-	// USDC-HONEY composable stable pool
-	// bexv2 -contract=0x9C8a5c82e797e074Fe3f121B326b140CEC4bcb33 -address=0xf7f214a9543c1153ef5df2edcd839074615f248c
-	//       -prices=0x015fd589f4f1a33ce4487e12714e1b15129c9329:1.044:6,0xd137593cdb341ccc78426c54fb98435c60da193c:1.0:18
-	//       -rpcurl=berchain-rpc-provider
+	// USDC.e-HONEY composable stable pool
+	// bexv2 -contract=0x4Be03f781C497A489E3cB0287833452cA9B9E80B -address=0xf961a8f6d8c69e7321e78d254ecafbcc3a637621
+	//       -prices=0x549943e04f40284185054145c6e4e9568c1d3241:1.044:6,0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0:18
 
 	// Validate required arguments
 	missingArgs := []string{}
@@ -128,4 +128,18 @@ func main() {
 			Str("TVL (USD)", tvl).
 			Msg("successfully fetched TVL")
 	}
+
+	// Test Offchain BEX API for fetching current pool APR
+	stakingTokens := []string{
+		"0x1207c619086a52edef4a4b7af881b5ddd367a919",
+		"0xdd70a5ef7d8cfe5c5134b5f9874b09fb5ce812b4",
+		"0x2461e93d5963c2bb69de499676763e67a63c7ba5",
+		"0x62c030b29a6fef1b32677499e4a1f1852a8808c0",
+	}
+	bexAPRs, err := fetchers.FetchBexAPRs(ctx, stakingTokens)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("bad response from bex API")
+	}
+	logger.Info().
+		Msgf("fetched bex APRs from API %+v", bexAPRs)
 }
