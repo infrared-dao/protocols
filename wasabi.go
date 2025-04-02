@@ -20,7 +20,7 @@ type WasabiConfig struct {
 	LPTDecimals uint   `json:"lpt_decimals"`
 }
 
-// WasabiLPPriceProvider defines the provider for Wasabi dToken price and TVL.
+// WasabiLPPriceProvider defines the provider for Wasabi Token price and TVL.
 type WasabiLPPriceProvider struct {
 	address     common.Address
 	logger      zerolog.Logger
@@ -32,63 +32,63 @@ type WasabiLPPriceProvider struct {
 
 // NewWasabiLPPriceProvider creates a new instance of the WasabiLPPriceProvider.
 func NewWasabiLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *WasabiLPPriceProvider {
-	d := &WasabiLPPriceProvider{
+	w := &WasabiLPPriceProvider{
 		address:     address,
 		logger:      logger,
 		priceMap:    prices,
 		configBytes: config,
 	}
-	return d
+	return w
 }
 
 // Initialize checks the configuration/data provided and instantiates the Wasabi smart contract.
-func (d *WasabiLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+func (w *WasabiLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
 	var err error
 
-	d.config = &WasabiConfig{}
-	err = json.Unmarshal(d.configBytes, d.config)
+	w.config = &WasabiConfig{}
+	err = json.Unmarshal(w.configBytes, w.config)
 	if err != nil {
-		d.logger.Error().Err(err).Msg("failed to deserialize config")
+		w.logger.Error().Err(err).Msg("failed to deserialize config")
 		return err
 	}
 
-	_, ok := d.priceMap[d.config.Token0]
+	_, ok := w.priceMap[w.config.Token0]
 	if !ok {
-		err = fmt.Errorf("no price data found for token0 (%s)", d.config.Token0)
-		d.logger.Error().Msg(err.Error())
+		err = fmt.Errorf("no price data found for token0 (%s)", w.config.Token0)
+		w.logger.Error().Msg(err.Error())
 		return err
 	}
 
-	d.contract, err = sc.NewERC4626(d.address, client)
+	w.contract, err = sc.NewERC4626(w.address, client)
 	if err != nil {
-		d.logger.Error().Err(err).Msg("failed to instantiate Wasabi smart contract")
+		w.logger.Error().Err(err).Msg("failed to instantiate Wasabi smart contract")
 		return err
 	}
 
 	return nil
 }
 
-func (d *WasabiLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	ts, err := d.getTotalSupply(ctx)
+func (w *WasabiLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
+	ts, err := w.getTotalSupply(ctx)
 	if err != nil {
 		return "", err
 	}
 
 	if ts.Cmp(big.NewInt(0)) == 0 {
 		err = fmt.Errorf("total supply is zero")
-		d.logger.Error().Err(err).Msg("failed to fetch total supply")
+		w.logger.Error().Err(err).Msg("failed to fetch total supply")
 		return "", err
 	}
 
-	tvl, err := d.tvl(ctx)
+	tvl, err := w.tvl(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	tsd := NormalizeAmount(ts, d.config.LPTDecimals)
+	tsd := NormalizeAmount(ts, w.config.LPTDecimals)
 	price := tvl.Div(tsd)
 
-	d.logger.Info().
+	w.logger.Info().
 		Str("totalValue", tvl.String()).
 		Str("totalSupply", ts.String()).
 		Str("pricePerToken", price.String()).
@@ -97,17 +97,17 @@ func (d *WasabiLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 	return price.StringFixed(roundingDecimals), nil
 }
 
-func (d *WasabiLPPriceProvider) TVL(ctx context.Context) (string, error) {
-	totalValue, err := d.tvl(ctx)
+func (w *WasabiLPPriceProvider) TVL(ctx context.Context) (string, error) {
+	totalValue, err := w.tvl(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	d.logger.Info().Str("tvl", totalValue.String()).Msg("successfully fetched TVL")
+	w.logger.Info().Str("tvl", totalValue.String()).Msg("successfully fetched TVL")
 	return totalValue.StringFixed(roundingDecimals), nil
 }
 
-func (d *WasabiLPPriceProvider) GetConfig(ctx context.Context, address string, ethClient *ethclient.Client) ([]byte, error) {
+func (w *WasabiLPPriceProvider) GetConfig(ctx context.Context, address string, ethClient *ethclient.Client) ([]byte, error) {
 	var err error
 	if !common.IsHexAddress(address) {
 		err = fmt.Errorf("invalid smart contract address, '%s'", address)
@@ -120,7 +120,7 @@ func (d *WasabiLPPriceProvider) GetConfig(ctx context.Context, address string, e
 		return nil, err
 	}
 
-	dc := &WasabiConfig{}
+	wc := &WasabiConfig{}
 	opts := &bind.CallOpts{
 		Context: ctx,
 	}
@@ -130,16 +130,16 @@ func (d *WasabiLPPriceProvider) GetConfig(ctx context.Context, address string, e
 		err = fmt.Errorf("failed to fetch asset address, %v", err)
 		return nil, err
 	}
-	dc.Token0 = strings.ToLower(addr.Hex())
+	wc.Token0 = strings.ToLower(addr.Hex())
 
 	decimals, err := contract.Decimals(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to fetch decimals, %v", err)
 		return nil, err
 	}
-	dc.LPTDecimals = uint(decimals)
+	wc.LPTDecimals = uint(decimals)
 
-	body, err := json.Marshal(dc)
+	body, err := json.Marshal(wc)
 	if err != nil {
 		return nil, err
 	}
@@ -150,53 +150,53 @@ func (d *WasabiLPPriceProvider) GetConfig(ctx context.Context, address string, e
 ///// Helpers
 
 // tvl fetches the TVL from the Wasabi smart contract.
-func (d *WasabiLPPriceProvider) tvl(ctx context.Context) (decimal.Decimal, error) {
-	dTokenAmount, err := d.getUnderlyingBalances(ctx)
+func (w *WasabiLPPriceProvider) tvl(ctx context.Context) (decimal.Decimal, error) {
+	wTokenAmount, err := w.getUnderlyingBalances(ctx)
 	if err != nil {
-		d.logger.Error().Err(err).Msg("failed to fetch dToken amount")
+		w.logger.Error().Err(err).Msg("failed to fetch wToken amount")
 		return decimal.Zero, err
 	}
-	dTokenPrice, err := d.getPrice(d.config.Token0)
+	wTokenPrice, err := w.getPrice(w.config.Token0)
 	if err != nil {
 		return decimal.Zero, err
 	}
-	dTokenAmountDecimal := NormalizeAmount(dTokenAmount, dTokenPrice.Decimals)
-	tvl := dTokenAmountDecimal.Mul(dTokenPrice.Price)
+	wTokenAmountDecimal := NormalizeAmount(wTokenAmount, wTokenPrice.Decimals)
+	tvl := wTokenAmountDecimal.Mul(wTokenPrice.Price)
 	return tvl, nil
 }
 
 // getPrice fetches the price of the token from the price map.
-func (d *WasabiLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
-	price, ok := d.priceMap[tokenKey]
+func (w *WasabiLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
+	price, ok := w.priceMap[tokenKey]
 	if !ok {
 		err := fmt.Errorf("no price data found for token (%s)", tokenKey)
-		d.logger.Error().Msg(err.Error())
+		w.logger.Error().Msg(err.Error())
 		return nil, err
 	}
 	return &price, nil
 }
 
 // getTotalSupply fetches the total supply of the LP token.
-func (d *WasabiLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
+func (w *WasabiLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
 		Context: ctx,
 	}
-	totalSupply, err := d.contract.TotalSupply(opts)
+	totalSupply, err := w.contract.TotalSupply(opts)
 	if err != nil {
-		d.logger.Error().Err(err).Msg("failed to fetch total supply")
+		w.logger.Error().Err(err).Msg("failed to fetch total supply")
 		return nil, err
 	}
 	return totalSupply, nil
 }
 
-func (d *WasabiLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, error) {
+func (w *WasabiLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
 		Context: ctx,
 	}
 
-	amount0, err := d.contract.TotalAssets(opts)
+	amount0, err := w.contract.TotalAssets(opts)
 	if err != nil {
-		d.logger.Error().Err(err).Msg("failed to fetch total assets")
+		w.logger.Error().Err(err).Msg("failed to fetch total assets")
 		return nil, err
 	}
 

@@ -31,7 +31,7 @@ type D8xLPPriceProvider struct {
 	configBytes []byte
 	config      D8xConfig
 	orclCtrct   *sc.AggregatorV3
-	d8xCtrct    *sc.D8x
+	d8xCtrct    *sc.D8xPoolManager
 }
 
 // NewD8xLPPriceProvider returns a new instance of D8XLPPriceProvider with the assigned config
@@ -67,7 +67,7 @@ func (d8x *D8xLPPriceProvider) Initialize(ctx context.Context, client *ethclient
 		return fmt.Errorf("unable to deserialize config: %v", err)
 	}
 	// create d8x manager instance
-	d8x.d8xCtrct, err = sc.NewD8x(d8x.poolMngr, client)
+	d8x.d8xCtrct, err = sc.NewD8xPoolManager(d8x.poolMngr, client)
 	if err != nil {
 		return fmt.Errorf("failed to instantiate d8x contract: %v", err)
 	}
@@ -78,6 +78,8 @@ func (d8x *D8xLPPriceProvider) Initialize(ctx context.Context, client *ethclient
 	if err != nil {
 		return fmt.Errorf("unable to extract liquidity pool data: %v", err)
 	}
+	fmt.Printf("LP: %+v\n", lp)
+
 	// get pool token decimals
 	poolTkn, err := sc.NewERC20(lp.MarginTokenAddress, client)
 	if err != nil {
