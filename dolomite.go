@@ -15,6 +15,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var _ Protocol = &DolomiteLPPriceProvider{}
+
 type DolomiteConfig struct {
 	Token0      string `json:"token0"`
 	LPTDecimals uint   `json:"lpt_decimals"`
@@ -31,7 +33,12 @@ type DolomiteLPPriceProvider struct {
 }
 
 // NewDolomiteLPPriceProvider creates a new instance of the DolomiteLPPriceProvider.
-func NewDolomiteLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) Protocol {
+func NewDolomiteLPPriceProvider(
+	address common.Address,
+	prices map[string]Price,
+	logger zerolog.Logger,
+	config []byte,
+) *DolomiteLPPriceProvider {
 	d := &DolomiteLPPriceProvider{
 		address:     address,
 		logger:      logger,

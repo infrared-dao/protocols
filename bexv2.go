@@ -16,6 +16,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var _ Protocol = &BexV2LPPriceProvider{}
+
 type BexV2PoolConfig struct {
 	PoolID      [32]byte `json:"poolid"`
 	LPTDecimals uint     `json:"lpt_decimals"`
@@ -40,7 +42,7 @@ func NewBexV2LPPriceProvider(
 	prices map[string]Price,
 	logger zerolog.Logger,
 	config []byte,
-) Protocol {
+) *BexV2LPPriceProvider {
 	b := &BexV2LPPriceProvider{
 		vaultAddress: vaultAddress,
 		poolAddress:  poolAddress,

@@ -15,6 +15,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var _ Protocol = &D8xLPPriceProvider{}
+
 const (
 	One64x64                = "18446744073709551616" // 1 << 64
 	Decimals18              = 1e18
@@ -39,7 +41,7 @@ type D8xLPPriceProvider struct {
 
 // NewD8xLPPriceProvider returns a new instance of D8XLPPriceProvider with the assigned config
 // and the D8X contract address
-func NewD8xLPPriceProvider(address common.Address, logger zerolog.Logger, config []byte) Protocol {
+func NewD8xLPPriceProvider(address common.Address, logger zerolog.Logger, config []byte) *D8xLPPriceProvider {
 	d := &D8xLPPriceProvider{
 		address:     address,
 		logger:      logger,

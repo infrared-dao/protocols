@@ -14,6 +14,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var _ Protocol = &BeraBorrowLPPriceProvider{}
+
 // This adapter is for a very specific type of BeraBorrow token setup
 // InfraredWrapper type tokens are the LP Token in this case
 // InfraredWrappers are 1-1 with the CompoundingInfraredCollateralVault token type
@@ -41,7 +43,12 @@ type BeraBorrowLPPriceProvider struct {
 }
 
 // NewBeraBorrowLPPriceProvider creates a new instance of the BeraBorrowLPPriceProvider.
-func NewBeraBorrowLPPriceProvider(LPTAddress common.Address, block *big.Int, logger zerolog.Logger, config []byte) Protocol {
+func NewBeraBorrowLPPriceProvider(
+	LPTAddress common.Address,
+	block *big.Int,
+	logger zerolog.Logger,
+	config []byte,
+) *BeraBorrowLPPriceProvider {
 	b := &BeraBorrowLPPriceProvider{
 		LPTAddress:  LPTAddress,
 		logger:      logger,

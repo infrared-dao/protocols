@@ -16,6 +16,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var _ Protocol = &BurrBearLPPriceProvider{}
+
 // BurrBear is based on BalancerV2 which is the same codebase which BEX uses on mainnet
 // Decided to implement it as a parallel code instead of a wrapper so it can get in config
 //  the VaultContract address off the contract itself so we don't need to pass this in as
@@ -40,7 +42,12 @@ type BurrBearLPPriceProvider struct {
 }
 
 // NewBurrBearLPPriceProvider creates a new instance of the BurrBearLPPriceProvider.
-func NewBurrBearLPPriceProvider(poolAddress common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) Protocol {
+func NewBurrBearLPPriceProvider(
+	poolAddress common.Address,
+	prices map[string]Price,
+	logger zerolog.Logger,
+	config []byte,
+) *BurrBearLPPriceProvider {
 	b := &BurrBearLPPriceProvider{
 		poolAddress: poolAddress,
 		logger:      logger,

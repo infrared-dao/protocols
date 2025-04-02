@@ -16,6 +16,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var _ Protocol = &AquaBeraLPPriceProvider{}
+
 type AquaBeraConfig struct {
 	Token0      string `json:"token0"`
 	Token1      string `json:"token1"`
@@ -33,7 +35,12 @@ type AquaBeraLPPriceProvider struct {
 }
 
 // NewAquaBeraLPPriceProvider creates a new instance of the AquaBeraLPPriceProvider.
-func NewAquaBeraLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) Protocol {
+func NewAquaBeraLPPriceProvider(
+	address common.Address,
+	prices map[string]Price,
+	logger zerolog.Logger,
+	config []byte,
+) *AquaBeraLPPriceProvider {
 	a := &AquaBeraLPPriceProvider{
 		address:     address,
 		logger:      logger,

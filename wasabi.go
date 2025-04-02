@@ -15,6 +15,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var _ Protocol = &WasabiLPPriceProvider{}
+
 type WasabiConfig struct {
 	Token0      string `json:"token0"`
 	LPTDecimals uint   `json:"lpt_decimals"`
@@ -31,7 +33,12 @@ type WasabiLPPriceProvider struct {
 }
 
 // NewWasabiLPPriceProvider creates a new instance of the WasabiLPPriceProvider.
-func NewWasabiLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) Protocol {
+func NewWasabiLPPriceProvider(
+	address common.Address,
+	prices map[string]Price,
+	logger zerolog.Logger,
+	config []byte,
+) *WasabiLPPriceProvider {
 	w := &WasabiLPPriceProvider{
 		address:     address,
 		logger:      logger,
