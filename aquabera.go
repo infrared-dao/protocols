@@ -33,7 +33,7 @@ type AquaBeraLPPriceProvider struct {
 }
 
 // NewAquaBeraLPPriceProvider creates a new instance of the AquaBeraLPPriceProvider.
-func NewAquaBeraLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *AquaBeraLPPriceProvider {
+func NewAquaBeraLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) Protocol {
 	a := &AquaBeraLPPriceProvider{
 		address:     address,
 		logger:      logger,

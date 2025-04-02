@@ -34,7 +34,7 @@ type KodiakLPPriceProvider struct {
 }
 
 // NewKodiakLPPriceProvider creates a new instance of the KodiakLPPriceProvider.
-func NewKodiakLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *KodiakLPPriceProvider {
+func NewKodiakLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) Protocol {
 	k := &KodiakLPPriceProvider{
 		address:     address,
 		logger:      logger,

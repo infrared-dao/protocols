@@ -41,7 +41,7 @@ type BeraBorrowLPPriceProvider struct {
 }
 
 // NewBeraBorrowLPPriceProvider creates a new instance of the BeraBorrowLPPriceProvider.
-func NewBeraBorrowLPPriceProvider(LPTAddress common.Address, block *big.Int, logger zerolog.Logger, config []byte) *BeraBorrowLPPriceProvider {
+func NewBeraBorrowLPPriceProvider(LPTAddress common.Address, block *big.Int, logger zerolog.Logger, config []byte) Protocol {
 	b := &BeraBorrowLPPriceProvider{
 		LPTAddress:  LPTAddress,
 		logger:      logger,
@@ -150,7 +150,6 @@ func (b *BeraBorrowLPPriceProvider) GetConfig(ctx context.Context, lpAddress str
 	}
 
 	bbcc := BeraBorrowCDPConfig{}
-
 	opts := &bind.CallOpts{
 		Context: ctx,
 	}

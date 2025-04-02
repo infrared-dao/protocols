@@ -36,7 +36,13 @@ type BexLPPriceProvider struct {
 }
 
 // NewBexLPPriceProvider creates a new instance of the BexLPPriceProvider.
-func NewBexLPPriceProvider(crocqueryAddress common.Address, lpTokenAddress common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *BexLPPriceProvider {
+func NewBexLPPriceProvider(
+	crocqueryAddress common.Address,
+	lpTokenAddress common.Address,
+	prices map[string]Price,
+	logger zerolog.Logger,
+	config []byte,
+) Protocol {
 	b := &BexLPPriceProvider{
 		queryAddress:   crocqueryAddress,
 		lpTokenAddress: lpTokenAddress,

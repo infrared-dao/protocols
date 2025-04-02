@@ -39,84 +39,13 @@ type D8xLPPriceProvider struct {
 
 // NewD8xLPPriceProvider returns a new instance of D8XLPPriceProvider with the assigned config
 // and the D8X contract address
-func NewD8xLPPriceProvider(address common.Address, logger zerolog.Logger, config []byte) *D8xLPPriceProvider {
+func NewD8xLPPriceProvider(address common.Address, logger zerolog.Logger, config []byte) Protocol {
 	d := &D8xLPPriceProvider{
 		address:     address,
 		logger:      logger,
 		configBytes: config,
 	}
 	return d
-}
-
-// GetConfig returns the configuration for the given parameters for D8X protocol.
-// PoolId is the LP pool identification, orclPoolTknAddr is the chainlink-type
-// oracle address for the pool token price
-/*func (d8x *D8xLPPriceProvider) GetConfig(poolId uint8, orclPoolTknAddr string) ([]byte, error) {
-	if !common.IsHexAddress(orclPoolTknAddr) {
-		return nil, fmt.Errorf("invalid smart contract address, '%s'", orclPoolTknAddr)
-	}
-	c := D8xConfig{
-		PoolId:      poolId,
-		OrclPoolTkn: common.HexToAddress(orclPoolTknAddr),
-	}
-	return json.Marshal(c)
-}*/
-
-func (d8x *D8xLPPriceProvider) GetConfig(ctx context.Context, address string, ethClient *ethclient.Client) ([]byte, error) {
-	var err error
-	if !common.IsHexAddress(address) {
-		err = fmt.Errorf("invalid smart contract address, '%s'", address)
-		return nil, err
-	}
-
-	stContract, err := sc.NewD8xShareToken(common.HexToAddress(address), ethClient)
-	if err != nil {
-		err = fmt.Errorf("failed to instantiate D8x share token smart contract, %v", err)
-		return nil, err
-	}
-
-	d8xc := &D8xConfig{}
-	opts := &bind.CallOpts{
-		Context: ctx,
-	}
-
-	// 1. Get the poolID and pool manager address from the share token
-
-	poolID, err := stContract.PoolId(opts)
-	if err != nil {
-		err = fmt.Errorf("failed to fetch poolID, %v", err)
-		return nil, err
-	}
-	d8xc.PoolId = poolID
-
-	poolManager, err := stContract.Owner(opts)
-	if err != nil {
-		err = fmt.Errorf("failed to fetch pool manager address (owner), %v", err)
-		return nil, err
-	}
-	d8xc.PoolManager = poolManager
-
-	// 2. Get the liquidity pool data from the pool manager and poolID
-	//    Get margin token address and its decimals from liquidity pool
-
-	pmContract, err := sc.NewD8xPoolManager(poolManager, ethClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to instantiate d8x pool manager contract: %v", err)
-	}
-
-	lp, err := pmContract.GetLiquidityPool(opts, poolID)
-	if err != nil {
-		return nil, fmt.Errorf("unable to extract liquidity pool data: %v", err)
-	}
-	d8xc.MarginToken = lp.MarginTokenAddress
-	d8xc.MarginDecimals = lp.MarginTokenDecimals
-
-	body, err := json.Marshal(d8xc)
-	if err != nil {
-		return nil, err
-	}
-
-	return body, nil
 }
 
 func (d8x *D8xLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
@@ -196,6 +125,63 @@ func (d8x *D8xLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error)
 	pxUSD := pxCC.Mul(px)
 
 	return pxUSD.StringFixed(roundingDecimals), nil
+}
+
+func (d8x *D8xLPPriceProvider) GetConfig(ctx context.Context, address string, ethClient *ethclient.Client) ([]byte, error) {
+	var err error
+	if !common.IsHexAddress(address) {
+		err = fmt.Errorf("invalid smart contract address, '%s'", address)
+		return nil, err
+	}
+
+	stContract, err := sc.NewD8xShareToken(common.HexToAddress(address), ethClient)
+	if err != nil {
+		err = fmt.Errorf("failed to instantiate D8x share token smart contract, %v", err)
+		return nil, err
+	}
+
+	d8xc := &D8xConfig{}
+	opts := &bind.CallOpts{
+		Context: ctx,
+	}
+
+	// 1. Get the poolID and pool manager address from the share token
+
+	poolID, err := stContract.PoolId(opts)
+	if err != nil {
+		err = fmt.Errorf("failed to fetch poolID, %v", err)
+		return nil, err
+	}
+	d8xc.PoolId = poolID
+
+	poolManager, err := stContract.Owner(opts)
+	if err != nil {
+		err = fmt.Errorf("failed to fetch pool manager address (owner), %v", err)
+		return nil, err
+	}
+	d8xc.PoolManager = poolManager
+
+	// 2. Get the liquidity pool data from the pool manager and poolID
+	//    Get margin token address and its decimals from liquidity pool
+
+	pmContract, err := sc.NewD8xPoolManager(poolManager, ethClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to instantiate d8x pool manager contract: %v", err)
+	}
+
+	lp, err := pmContract.GetLiquidityPool(opts, poolID)
+	if err != nil {
+		return nil, fmt.Errorf("unable to extract liquidity pool data: %v", err)
+	}
+	d8xc.MarginToken = lp.MarginTokenAddress
+	d8xc.MarginDecimals = lp.MarginTokenDecimals
+
+	body, err := json.Marshal(d8xc)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
 
 // ABDKToDecimal converts an ABDK fixed point 64.64 number to deicmal.Decimal

@@ -31,7 +31,7 @@ type DolomiteLPPriceProvider struct {
 }
 
 // NewDolomiteLPPriceProvider creates a new instance of the DolomiteLPPriceProvider.
-func NewDolomiteLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *DolomiteLPPriceProvider {
+func NewDolomiteLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) Protocol {
 	d := &DolomiteLPPriceProvider{
 		address:     address,
 		logger:      logger,

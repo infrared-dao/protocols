@@ -31,7 +31,7 @@ type WasabiLPPriceProvider struct {
 }
 
 // NewWasabiLPPriceProvider creates a new instance of the WasabiLPPriceProvider.
-func NewWasabiLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *WasabiLPPriceProvider {
+func NewWasabiLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) Protocol {
 	w := &WasabiLPPriceProvider{
 		address:     address,
 		logger:      logger,

@@ -40,7 +40,7 @@ type BurrBearLPPriceProvider struct {
 }
 
 // NewBurrBearLPPriceProvider creates a new instance of the BurrBearLPPriceProvider.
-func NewBurrBearLPPriceProvider(poolAddress common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *BurrBearLPPriceProvider {
+func NewBurrBearLPPriceProvider(poolAddress common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) Protocol {
 	b := &BurrBearLPPriceProvider{
 		poolAddress: poolAddress,
 		logger:      logger,

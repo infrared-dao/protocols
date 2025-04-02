@@ -41,7 +41,7 @@ type BullaLPPriceProvider struct {
 }
 
 // NewBullaLPPriceProvider creates a new instance of the BullaLPPriceProvider.
-func NewBullaLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) *BullaLPPriceProvider {
+func NewBullaLPPriceProvider(address common.Address, prices map[string]Price, logger zerolog.Logger, config []byte) Protocol {
 	b := &BullaLPPriceProvider{
 		address:     address,
 		logger:      logger,
