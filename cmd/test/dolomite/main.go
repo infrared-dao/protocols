@@ -21,9 +21,9 @@ func main() {
 		Logger()
 
 	// Command-line arguments
-	addressArg := flag.String("address", "", "Smart contract address")
-	price0Arg := flag.String("price0", "", "address:price of token 0, colon delimited")
-	rpcURLArg := flag.String("rpcurl", "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID", "Ethereum RPC URL")
+	addressArg := flag.String("address", "0x7f2b60fdff1494a0e3e060532c9980d7fad0404b", "Smart contract address")
+	price0Arg := flag.String("price0", "0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0", "address:price of asset token")
+	rpcURLArg := flag.String("rpcurl", "https://berchain-rpc-url", "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// Validate required arguments
@@ -37,7 +37,7 @@ func main() {
 	if len(missingArgs) > 0 {
 		logger.Fatal().
 			Strs("missingArgs", missingArgs).
-			Str("usage", "go run main.go -address <contract-address> -abipath <path-to-abi> -price0 <price0> -price1 <price1> -rpcurl <rpc-url>").
+			Str("usage", "go run main.go -address <contract-address> -price0 <price0> -price1 <price1> -rpcurl <rpc-url>").
 			Msg("Missing required arguments")
 	}
 
@@ -104,7 +104,7 @@ func main() {
 		"0x0555e30da8f98308edb960aa94c0db47230d2b9c", // WBTC
 		"0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590", // WETH
 	}
-	dolomiteAPRs, err := fetchers.FetchDolomiteAPRs(underlyingTokens)
+	dolomiteAPRs, err := fetchers.FetchDolomiteAPRs(ctx, underlyingTokens)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("bad response from dolomite API")
 	}

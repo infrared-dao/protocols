@@ -1,10 +1,9 @@
 package fetchers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"slices"
 	"strings"
 
@@ -28,7 +27,7 @@ type dolomiteResponse struct {
 }
 
 // Dolomite API has no reference to the actual stake token, only the underlying token
-func FetchDolomiteAPRs(underlyingTokens []string) (map[string]decimal.Decimal, error) {
+func FetchDolomiteAPRs(ctx context.Context, underlyingTokens []string) (map[string]decimal.Decimal, error) {
 	if len(underlyingTokens) == 0 {
 		return nil, nil
 	}
@@ -37,22 +36,17 @@ func FetchDolomiteAPRs(underlyingTokens []string) (map[string]decimal.Decimal, e
 		underlyingTokens[idx] = strings.ToLower(tokenAddress)
 	}
 
-	request, err := http.NewRequest("GET", dolomiteAPI, nil)
-	if err != nil {
-		return nil, err
+	params := HTTPParams{
+		URL: dolomiteAPI,
+		Headers: map[string]string{
+			"Accept": "application/json",
+		},
+		MaxWait: DefaultRequestTimeout,
 	}
-	//request.Header.Set("Content-Type", "application/json; charset=UTF-8")
 
-	client := &http.Client{}
-	response, err := client.Do(request)
+	responseJSON, err := HTTPGet(ctx, params)
 	if err != nil {
-		return nil, err
-	}
-	defer response.Body.Close()
-
-	responseJSON, err := io.ReadAll(response.Body)
-	if err != nil {
-		err = fmt.Errorf("failed to read response.Body: %v", response.Body)
+		err = fmt.Errorf("failed to fetch dolomite interest rate data, %w", err)
 		log.Error().Msg(err.Error())
 		return nil, err
 	}

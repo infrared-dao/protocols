@@ -2,10 +2,9 @@ package fetchers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -32,7 +31,7 @@ type kodiakResponse struct {
 	} `json:"data"`
 }
 
-func FetchKodiakAPRs(stakingTokens []string) (map[string]decimal.Decimal, error) {
+func FetchKodiakAPRs(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
 	if len(stakingTokens) == 0 {
 		return nil, nil
 	}
@@ -44,22 +43,19 @@ func FetchKodiakAPRs(stakingTokens []string) (map[string]decimal.Decimal, error)
 	query := fmt.Sprintf(kodiakQuery, tokensFilter)
 	jsonQuery := []byte(`{"query": "` + query + `"}`)
 
-	request, err := http.NewRequest("POST", kodiakAPI, bytes.NewBuffer(jsonQuery))
-	if err != nil {
-		return nil, err
+	params := HTTPParams{
+		URL: kodiakAPI,
+		Headers: map[string]string{
+			"Content-Type": "application/json; charset=UTF-8",
+			"Accept":       "application/json",
+		},
+		RequestBody: bytes.NewBuffer(jsonQuery).Bytes(),
+		MaxWait:     DefaultRequestTimeout,
 	}
-	request.Header.Set("Content-Type", "application/json; charset=UTF-8")
 
-	client := &http.Client{}
-	response, err := client.Do(request)
+	responseJSON, err := HTTPPost(ctx, params)
 	if err != nil {
-		return nil, err
-	}
-	defer response.Body.Close()
-
-	responseJSON, err := io.ReadAll(response.Body)
-	if err != nil {
-		err = fmt.Errorf("failed to read response.Body: %v", response.Body)
+		err = fmt.Errorf("failed to fetch kodiak APR data, %w", err)
 		log.Error().Msg(err.Error())
 		return nil, err
 	}
