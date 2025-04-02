@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"strconv"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -19,31 +18,29 @@ func main() {
 	logger := zerolog.New(os.Stdout).With().
 		Timestamp().
 		Logger()
-	// test price conversion
+
+		// test price conversion
 	err := testPriceConversion()
 	if err != nil {
 		logger.Fatal().Msg(err.Error())
 	}
-	// From Kodiak example: command-line arguments
+
 	logger.Info().Msg("price conversion successful")
-	poolIdArg := flag.String("poolId", "1", "poolId")
-	oracleAddr := flag.String("oracle address", "0xA8655EF2354d679E2553C10b2d59a61C4345aF51", "address of pool token collateral USD-price")
-	d8xMngrAddr := flag.String("mngr address", "0xb6329c7168b255Eca8e5c627b0CCe7A5289C8b7F", "address of d8x manager")
+	addressArg := flag.String("address", "0x26bbc26415c6316890565f5f73017f85ee70b60c", "Smart contract address")
 	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com", "Mainnet Berachain RPC URL")
 	flag.Parse()
 
-	// get config
-	tmp := protocols.D8xLPPriceProvider{}
-	id, err := strconv.Atoi(*poolIdArg)
-	if err != nil {
-		logger.Fatal().Err(err).Str("poolIdArg", *poolIdArg).Msg("invalid pool id")
+	// Validate required arguments
+	missingArgs := []string{}
+	if *addressArg == "" {
+		missingArgs = append(missingArgs, "address")
 	}
-	configBytes, err := tmp.GetConfig(uint8(id), *oracleAddr)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("GetConfig failed")
+	if len(missingArgs) > 0 {
+		logger.Fatal().
+			Strs("missingArgs", missingArgs).
+			Str("usage", "go run main.go -address <contract-address> -rpcurl <rpc-url>").
+			Msg("Missing required arguments")
 	}
-	mngr := common.HexToAddress(*d8xMngrAddr)
-	provider := protocols.NewD8xLPPriceProvider(mngr, configBytes)
 
 	ctx := context.Background()
 	// Connect to the Ethereum client
@@ -51,10 +48,23 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Str("rpcurl", *rpcURLArg).Msg("Failed to connect to Ethereum client")
 	}
+
+	cp := protocols.D8xLPPriceProvider{}
+	configBytes, err := cp.GetConfig(ctx, *addressArg, client)
+	if err != nil {
+		logger.Fatal().Err(err).Str("address", *addressArg).Msg("Failed to get config")
+	}
+
+	// Parse the smart contract address
+	address := common.HexToAddress(*addressArg)
+	// Create a new DolomiteLPPriceProvider
+	provider := protocols.NewD8xLPPriceProvider(address, logger, configBytes)
+
 	err = provider.Initialize(ctx, client)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Initialize failed")
 	}
+
 	// Fetch LP token price
 	lpPrice, err := provider.LPTokenPrice(ctx)
 	if err != nil {
