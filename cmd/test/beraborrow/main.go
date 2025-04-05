@@ -19,7 +19,7 @@ func main() {
 		Logger()
 
 	// Command-line arguments
-	lpTokenArg := flag.String("address", "", "LP Token address, ie. beraborrow infrared wrapper token address")
+	lpTokenArg := flag.String("address", "0xB318Cd79dC0743De041A26D3F0d467d49955E5bC", "LP Token address, ie. beraborrow infrared wrapper token address")
 	rpcURLArg := flag.String("rpcurl", "https://  mainnet-rpc-url", "Berachain RPC URL")
 	flag.Parse()
 
