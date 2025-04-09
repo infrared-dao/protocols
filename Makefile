@@ -37,6 +37,9 @@ build: codegen lint
 	rm -f $(BIN_DIR)/kodiak
 	go build -o $(BIN_DIR)/kodiak -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/kodiak/main.go
+	rm -f $(BIN_DIR)/wasabee
+	go build -o $(BIN_DIR)/wasabee -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/wasabee/main.go
 	rm -f $(BIN_DIR)/wasabi
 	go build -o $(BIN_DIR)/wasabi -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/wasabi/main.go
@@ -58,7 +61,7 @@ codegen:
 	abigen --abi assets/abis/balancervault.abi --pkg sc --type BalancerVault --out internal/sc/balancer_vault.go
 	abigen --abi assets/abis/beraborrowiw.abi --pkg sc --type BeraBorrowIW --out internal/sc/beraborrow_iw.go
 	abigen --abi assets/abis/beraborrowcicv.abi --pkg sc --type BeraBorrowCICV --out internal/sc/beraborrow_cicv.go
-	abigen --abi assets/abis/beraborrowsnect.abi --pkg sc --type BeraBorrowSNECT --out internal/sc/beraborrow_snect.go	
+	abigen --abi assets/abis/beraborrowsnect.abi --pkg sc --type BeraBorrowSNECT --out internal/sc/beraborrow_snect.go
 	abigen --abi assets/abis/bulla.abi --pkg sc --type Bulla --out internal/sc/bulla.go
 	abigen --abi assets/abis/aquabera.abi --pkg sc --type AquaBera --out internal/sc/aquabera.go
 	abigen --abi assets/abis/d8xpoolmanager.abi --pkg sc --type D8xPoolManager --out internal/sc/d8x_pool_manager.go
@@ -66,4 +69,4 @@ codegen:
 	abigen --abi assets/abis/aggregatorV3.abi --pkg sc --type AggregatorV3 --out internal/sc/aggregatorV3.go
 	abigen --abi assets/abis/kodiakvaultv1.abi --pkg sc --type KodiakV1 --out internal/sc/kodiak_v1.go
 	abigen --abi assets/abis/uniswapv2pair.abi --pkg sc --type UniswapV2 --out internal/sc/uniswap_v2.go	
-	
+	abigen --abi assets/abis/wasabeevault.abi --pkg sc --type WasabeeVault --out internal/sc/wasabee_vault.go
