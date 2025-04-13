@@ -2,6 +2,8 @@ package protocols
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +16,16 @@ import (
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
+)
+
+type ContractType string
+
+const (
+	V2PoolByteCodeSHA256   string       = "bffda5c9e111fa411890cc93d58cb5c58a14f97bcbfa642efe300c766c4397f6"
+	V3IslandByteCodeSHA256 string       = "f1b68b8044f372c1831075be05a63c1757ef9c64cabd5dfbf9a749a93f25b1da"
+	ContractTypeV2Pool     ContractType = "kodiak V2 pool contract"
+	ContractTypeV3Island   ContractType = "kodiak V3 island contract"
+	ContractTypeUnknown    ContractType = "unknown contract"
 )
 
 var _ Protocol = &KodiakLPPriceProvider{}
@@ -54,9 +66,6 @@ func NewKodiakLPPriceProvider(
 // Initialize checks the configuration/data provided and instantiates the KodiakV1 smart contract.
 func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
 	var err error
-	opts := &bind.CallOpts{
-		Context: ctx,
-	}
 
 	k.config = &KodiakConfig{}
 	err = json.Unmarshal(k.configBytes, k.config)
@@ -83,15 +92,17 @@ func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclien
 		return err
 	}
 
-	// Try to call the version() function... if error then not an Island V3 contract
-	_, err = k.contract.Version(opts)
-	if err != nil {
-		// If not a V3 Island, initialize it as a Kodiak V2 Pool
+	contractType := checkContractType(ctx, client, k.address)
+	if contractType == ContractTypeV2Pool {
+		// initialize contract for Kodiak V2 Pool
 		k.contractV2, err = sc.NewUniswapV2(k.address, client)
 		if err != nil {
 			k.logger.Error().Err(err).Msg("failed to instantiate V2 Kodiak Pool smart contract")
 			return err
 		}
+	}
+	if contractType == ContractTypeUnknown {
+		return errors.New("contract unrecognized as either kodiak V2 Pool or V3 Island")
 	}
 
 	return nil
@@ -260,5 +271,27 @@ func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big
 			return nil, nil, fmt.Errorf("failed to get kodiak V2 pool reserves, err: %w", err)
 		}
 		return reserves.Reserve0, reserves.Reserve1, err
+	}
+}
+
+// get contract byte code and SHA256 hash it to check the contract type against known values
+func checkContractType(ctx context.Context, client *ethclient.Client, address common.Address) ContractType {
+	bytecode, err := client.CodeAt(ctx, address, nil)
+	if err != nil {
+		panic(err)
+	}
+	byteCodeString := hex.EncodeToString(bytecode)
+
+	hasher := sha256.New()
+	hasher.Write([]byte(byteCodeString))
+	hash := hex.EncodeToString(hasher.Sum(nil))
+
+	switch hash {
+	case V2PoolByteCodeSHA256:
+		return ContractTypeV2Pool
+	case V3IslandByteCodeSHA256:
+		return ContractTypeV3Island
+	default:
+		return ContractTypeUnknown
 	}
 }
