@@ -25,8 +25,9 @@ type DolomiteConfig struct {
 // DolomiteLPPriceProvider defines the provider for Dolomite dToken price and TVL.
 type DolomiteLPPriceProvider struct {
 	address     common.Address
-	logger      zerolog.Logger
+	block       *big.Int
 	priceMap    map[string]Price
+	logger      zerolog.Logger
 	configBytes []byte
 	config      *DolomiteConfig
 	contract    *sc.ERC4626
@@ -35,14 +36,16 @@ type DolomiteLPPriceProvider struct {
 // NewDolomiteLPPriceProvider creates a new instance of the DolomiteLPPriceProvider.
 func NewDolomiteLPPriceProvider(
 	address common.Address,
+	block *big.Int,
 	prices map[string]Price,
 	logger zerolog.Logger,
 	config []byte,
 ) *DolomiteLPPriceProvider {
 	d := &DolomiteLPPriceProvider{
 		address:     address,
-		logger:      logger,
+		block:       block,
 		priceMap:    prices,
+		logger:      logger,
 		configBytes: config,
 	}
 	return d
@@ -154,7 +157,14 @@ func (d *DolomiteLPPriceProvider) GetConfig(ctx context.Context, address string,
 	return body, nil
 }
 
-///// Helpers
+func (d *DolomiteLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
+	d.block = block
+	if prices != nil {
+		d.priceMap = prices
+	}
+}
+
+// Internal Helper methods not able to be called except in this file
 
 // tvl fetches the TVL from the Dolomite smart contract.
 func (d *DolomiteLPPriceProvider) tvl(ctx context.Context) (decimal.Decimal, error) {
@@ -186,7 +196,8 @@ func (d *DolomiteLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getTotalSupply fetches the total supply of the LP token.
 func (d *DolomiteLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: d.block,
 	}
 	totalSupply, err := d.contract.TotalSupply(opts)
 	if err != nil {
@@ -198,7 +209,8 @@ func (d *DolomiteLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int,
 
 func (d *DolomiteLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: d.block,
 	}
 
 	amount0, err := d.contract.TotalAssets(opts)

@@ -27,8 +27,9 @@ type BexV2PoolConfig struct {
 type BexV2LPPriceProvider struct {
 	vaultAddress  common.Address
 	poolAddress   common.Address
-	logger        zerolog.Logger
+	block         *big.Int
 	priceMap      map[string]Price
+	logger        zerolog.Logger
 	configBytes   []byte
 	config        *BexV2PoolConfig
 	vaultContract *sc.BalancerVault
@@ -39,6 +40,7 @@ type BexV2LPPriceProvider struct {
 func NewBexV2LPPriceProvider(
 	vaultAddress common.Address,
 	poolAddress common.Address,
+	block *big.Int,
 	prices map[string]Price,
 	logger zerolog.Logger,
 	config []byte,
@@ -46,8 +48,9 @@ func NewBexV2LPPriceProvider(
 	b := &BexV2LPPriceProvider{
 		vaultAddress: vaultAddress,
 		poolAddress:  poolAddress,
-		logger:       logger,
+		block:        block,
 		priceMap:     prices,
+		logger:       logger,
 		configBytes:  config,
 	}
 	return b
@@ -80,12 +83,13 @@ func (b *BexV2LPPriceProvider) Initialize(ctx context.Context, client *ethclient
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD
 func (b *BexV2LPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-
-	// Fetch total supply from Balancer Base Pool which implements ERC20 interface
-	//totalSupply, err := b.poolContract.BalancerBasePoolCaller.TotalSupply(&bind.CallOpts{})
+	opts := &bind.CallOpts{
+		Context:     ctx,
+		BlockNumber: b.block,
+	}
 
 	// Using GetActualSupply because this is how much is circulating for pools which lock up some LP tokens
-	totalSupply, err := b.poolContract.BalancerBasePoolCaller.GetActualSupply(&bind.CallOpts{})
+	totalSupply, err := b.poolContract.BalancerBasePoolCaller.GetActualSupply(opts)
 	if err != nil {
 		return "", err
 	}
@@ -166,6 +170,15 @@ func (b *BexV2LPPriceProvider) GetConfig(ctx context.Context, poolAddress string
 	return body, nil
 }
 
+func (b *BexV2LPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
+	b.block = block
+	if prices != nil {
+		b.priceMap = prices
+	}
+}
+
+// Internal Helper methods not able to be called except in this file
+
 func (b *BexV2LPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
 	var err error
 
@@ -204,7 +217,8 @@ func (b *BexV2LPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getUnderlyingBalances fetches the underlying virtual token supply for each token.
 func (b *BexV2LPPriceProvider) getUnderlyingBalances(ctx context.Context) (map[string]*big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: b.block,
 	}
 
 	/********************************************

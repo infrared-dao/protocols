@@ -101,7 +101,7 @@ func main() {
 	address := common.HexToAddress(*lpTokenArg)
 	contract := common.HexToAddress(*contractArg)
 	// Create a new BexV2LPPriceProvider
-	provider := protocols.NewBexV2LPPriceProvider(contract, address, pmap, logger, configBytes)
+	provider := protocols.NewBexV2LPPriceProvider(contract, address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
 	err = provider.Initialize(ctx, client)

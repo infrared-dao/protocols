@@ -58,7 +58,7 @@ func main() {
 	// Parse the smart contract address
 	address := common.HexToAddress(*addressArg)
 	// Create a new DolomiteLPPriceProvider
-	provider := protocols.NewD8xLPPriceProvider(address, logger, configBytes)
+	provider := protocols.NewD8xLPPriceProvider(address, nil, logger, configBytes)
 
 	err = provider.Initialize(ctx, client)
 	if err != nil {

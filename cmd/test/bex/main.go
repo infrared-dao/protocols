@@ -95,7 +95,7 @@ func main() {
 	address := common.HexToAddress(*lpTokenArg)
 	contract := common.HexToAddress(*contractArg)
 	// Create a new KodiakLPPriceProvider
-	provider := protocols.NewBexLPPriceProvider(contract, address, pmap, logger, configBytes)
+	provider := protocols.NewBexLPPriceProvider(contract, address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
 	err = provider.Initialize(ctx, client)
