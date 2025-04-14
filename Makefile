@@ -67,6 +67,6 @@ codegen:
 	abigen --abi assets/abis/d8xpoolmanager.abi --pkg sc --type D8xPoolManager --out internal/sc/d8x_pool_manager.go
 	abigen --abi assets/abis/d8xsharetoken.abi --pkg sc --type D8xShareToken --out internal/sc/d8x_share_token.go	
 	abigen --abi assets/abis/aggregatorV3.abi --pkg sc --type AggregatorV3 --out internal/sc/aggregatorV3.go
-	abigen --abi assets/abis/kodiakvaultv1.abi --pkg sc --type KodiakV1 --out internal/sc/kodiak_v1.go
-	abigen --abi assets/abis/uniswapv2pair.abi --pkg sc --type UniswapV2 --out internal/sc/uniswap_v2.go	
+	abigen --abi assets/abis/kodiakisland.abi --pkg sc --type KodiakIsland --out internal/sc/kodiak_island.go
+	abigen --abi assets/abis/uniswapv2pair.abi --pkg sc --type UniswapV2 --out internal/sc/uniswap_v2.go
 	abigen --abi assets/abis/wasabeevault.abi --pkg sc --type WasabeeVault --out internal/sc/wasabee_vault.go
