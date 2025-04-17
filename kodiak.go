@@ -2,6 +2,8 @@ package protocols
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,7 +18,62 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const (
+	V2PoolByteCodeSHA256   = "bffda5c9e111fa411890cc93d58cb5c58a14f97bcbfa642efe300c766c4397f6"
+	V3IslandByteCodeSHA256 = "f1b68b8044f372c1831075be05a63c1757ef9c64cabd5dfbf9a749a93f25b1da"
+)
+
+// enforce interface adherence
 var _ Protocol = &KodiakLPPriceProvider{}
+var _ KodiakContract = &KodiakV3Island{}
+var _ KodiakContract = &KodiakV2Pool{}
+
+type Balances struct {
+	Amount0 *big.Int
+	Amount1 *big.Int
+}
+
+// Wrapper types which implement a common KodiakContract interface
+type KodiakV3Island struct {
+	*sc.KodiakIsland
+}
+type KodiakV2Pool struct {
+	*sc.UniswapV2
+}
+
+type KodiakContract interface {
+	Decimals(opts *bind.CallOpts) (uint8, error)
+	Token0(opts *bind.CallOpts) (common.Address, error)
+	Token1(opts *bind.CallOpts) (common.Address, error)
+	TotalSupply(opts *bind.CallOpts) (*big.Int, error)
+	GetBalances(opts *bind.CallOpts) (Balances, error)
+}
+
+// Unify different implementations for getting internal balance amounts
+
+func (v3 *KodiakV3Island) GetBalances(opts *bind.CallOpts) (Balances, error) {
+	balances, err := v3.GetUnderlyingBalances(opts)
+	if err != nil {
+		return Balances{}, err
+	}
+	return Balances{
+		Amount0: balances.Amount0Current,
+		Amount1: balances.Amount1Current,
+	}, nil
+}
+
+func (v2 *KodiakV2Pool) GetBalances(opts *bind.CallOpts) (Balances, error) {
+	balances, err := v2.GetReserves(opts)
+	if err != nil {
+		return Balances{}, err
+	}
+	return Balances{
+		Amount0: balances.Reserve0,
+		Amount1: balances.Reserve1,
+	}, nil
+}
+
+// Define core types for the Kodiak Adapter
 
 type KodiakConfig struct {
 	Token0      string `json:"token0"`
@@ -31,8 +88,7 @@ type KodiakLPPriceProvider struct {
 	priceMap    map[string]Price
 	configBytes []byte
 	config      *KodiakConfig
-	contract    *sc.KodiakV1
-	contractV2  *sc.UniswapV2
+	contract    KodiakContract
 }
 
 // NewKodiakLPPriceProvider creates a new instance of the KodiakLPPriceProvider.
@@ -54,9 +110,6 @@ func NewKodiakLPPriceProvider(
 // Initialize checks the configuration/data provided and instantiates the KodiakV1 smart contract.
 func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
 	var err error
-	opts := &bind.CallOpts{
-		Context: ctx,
-	}
 
 	k.config = &KodiakConfig{}
 	err = json.Unmarshal(k.configBytes, k.config)
@@ -77,27 +130,17 @@ func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclien
 		return err
 	}
 
-	k.contract, err = sc.NewKodiakV1(k.address, client)
+	// initialize Kodiak contract of correct type
+	k.contract, err = newKodiakContract(ctx, client, k.address)
 	if err != nil {
-		k.logger.Error().Err(err).Msg("failed to instantiate V3 Kodiak Island smart contract")
+		k.logger.Error().Err(err).Msg("failed to instantiate Kodiak smart contract")
 		return err
-	}
-
-	// Try to call the version() function... if error then not an Island V3 contract
-	_, err = k.contract.Version(opts)
-	if err != nil {
-		// If not a V3 Island, initialize it as a Kodiak V2 Pool
-		k.contractV2, err = sc.NewUniswapV2(k.address, client)
-		if err != nil {
-			k.logger.Error().Err(err).Msg("failed to instantiate V2 Kodiak Pool smart contract")
-			return err
-		}
 	}
 
 	return nil
 }
 
-// LPTokenPrice returns the current price of the protocol's LP token in USD cents (1 USD = 100 cents).
+// LPTokenPrice returns the current price of LP token in USD
 func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	// Fetch total supply
 	totalSupply, err := k.getTotalSupply(ctx)
@@ -129,7 +172,7 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 	return pricePerToken.StringFixed(roundingDecimals), nil
 }
 
-// TVL returns the Total Value Locked in the protocol in USD cents (1 USD = 100 cents).
+// TVL returns the Total Value Locked in the pool/island as USD
 func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	totalValue, err := k.totalValue(ctx)
 	if err != nil {
@@ -149,9 +192,11 @@ func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context, address string, c
 		err = fmt.Errorf("invalid smart contract address, '%s'", address)
 		return nil, err
 	}
-	contract, err := sc.NewKodiakV1(common.HexToAddress(address), client)
+
+	// initialize Kodiak contract of correct type
+	contract, err := newKodiakContract(ctx, client, common.HexToAddress(address))
 	if err != nil {
-		err = fmt.Errorf("failed to instantiate KodiakV1 smart contract, %v", err)
+		k.logger.Error().Err(err).Msg("failed to instantiate Kodiak smart contract")
 		return nil, err
 	}
 
@@ -195,8 +240,8 @@ func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context, address string, c
 func (k *KodiakLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
 	var err error
 
-	// Fetch underlying balances
-	amount0, amount1, err := k.getUnderlyingBalances(ctx)
+	// Fetch internal balances
+	amount0, amount1, err := k.getBalances(ctx)
 	if err != nil {
 		return decimal.Zero, err
 	}
@@ -231,34 +276,74 @@ func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, e
 	opts := &bind.CallOpts{
 		Context: ctx,
 	}
+
 	ts, err := k.contract.TotalSupply(opts)
 	if err != nil {
-		k.logger.Error().Msgf("failed to obtain total supply for kodiak vault %s, %v", k.address.String(), err)
-		return nil, fmt.Errorf("failed to get kodiak total supply, err: %w", err)
+		k.logger.Error().Msgf("failed to obtain total supply for kodiak contract %s, %v",
+			k.address.String(), err)
+		return nil, fmt.Errorf("failed to get kodiak contract total supply, err: %w", err)
 	}
 
 	return ts, err
 }
 
 // getUnderlyingBalances fetches the underlying token balances.
-func (k *KodiakLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, *big.Int, error) {
+func (k *KodiakLPPriceProvider) getBalances(ctx context.Context) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
 		Context: ctx,
 	}
 
-	if k.contractV2 == nil { // V3 Island or Pool Logic
-		ubs, err := k.contract.GetUnderlyingBalances(opts)
-		if err != nil {
-			k.logger.Error().Msgf("failed to obtain underlying balances for kodiak island %s, %v", k.address.String(), err)
-			return nil, nil, fmt.Errorf("failed to get kodiak island underlying balances, err: %w", err)
-		}
-		return ubs.Amount0Current, ubs.Amount1Current, err
-	} else { // V2 Pool Logic
-		reserves, err := k.contractV2.GetReserves(opts)
-		if err != nil {
-			k.logger.Error().Msgf("failed to obtain reserve balances for kodiak V2 pool %s, %v", k.address.String(), err)
-			return nil, nil, fmt.Errorf("failed to get kodiak V2 pool reserves, err: %w", err)
-		}
-		return reserves.Reserve0, reserves.Reserve1, err
+	bs, err := k.contract.GetBalances(opts)
+	if err != nil {
+		k.logger.Error().Msgf("failed to obtain balances for kodiak contract %s, %v",
+			k.address.String(), err)
+		return nil, nil, fmt.Errorf("failed to get kodiak contract balances, err: %w", err)
 	}
+	return bs.Amount0, bs.Amount1, err
+}
+
+// Check type of contract and create new connection
+func newKodiakContract(
+	ctx context.Context,
+	client *ethclient.Client,
+	address common.Address,
+) (KodiakContract, error) {
+	contractHash := checkContractCodeHash(ctx, client, address)
+
+	switch contractHash {
+	case V2PoolByteCodeSHA256:
+		// initialize contract as a Kodiak V2 Pool
+		pool, err := sc.NewUniswapV2(address, client)
+		if err != nil {
+			return nil, err
+		}
+		return &KodiakV2Pool{pool}, nil
+	case V3IslandByteCodeSHA256:
+		// initialize contract as a Kodiak V3 Island
+		island, err := sc.NewKodiakIsland(address, client)
+		if err != nil {
+			return nil, err
+		}
+		return &KodiakV3Island{island}, nil
+	default:
+		// Error for yet unknown contract type being attempted
+		return nil, errors.New("contract unrecognized: neither V2 Pool or V3 Island")
+	}
+}
+
+// get contract byte code and SHA256 hash it for checks on the contract type against known values
+func checkContractCodeHash(
+	ctx context.Context,
+	client *ethclient.Client,
+	address common.Address,
+) string {
+	bytecode, err := client.CodeAt(ctx, address, nil)
+	if err != nil {
+		panic(err)
+	}
+	byteCodeString := hex.EncodeToString(bytecode)
+
+	hash := sha256.New()
+	hash.Write([]byte(byteCodeString))
+	return hex.EncodeToString(hash.Sum(nil))
 }
