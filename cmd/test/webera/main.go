@@ -80,8 +80,8 @@ func main() {
 
 	// Parse the smart contract address
 	address := common.HexToAddress(*addressArg)
-	// Create a new NewWasabiLPPriceProvider
-	provider := protocols.NewWeberaLPPriceProvider(address, pmap, logger, configBytes)
+	// Create a new NewWeberaLPPriceProvider
+	provider := protocols.NewWeberaLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
 	err = provider.Initialize(ctx, client)

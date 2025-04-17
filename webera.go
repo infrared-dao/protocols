@@ -25,8 +25,9 @@ type WeberaConfig struct {
 // WeberaLPPriceProvider defines the provider for Wasabi Token price and TVL.
 type WeberaLPPriceProvider struct {
 	address     common.Address
-	logger      zerolog.Logger
+	block       *big.Int
 	priceMap    map[string]Price
+	logger      zerolog.Logger
 	configBytes []byte
 	config      *WeberaConfig
 	contract    *sc.WeberaVault
@@ -35,12 +36,14 @@ type WeberaLPPriceProvider struct {
 // NewWeberaLPPriceProvider creates a new instance of the WeberaLPPriceProvider.
 func NewWeberaLPPriceProvider(
 	address common.Address,
+	block *big.Int,
 	prices map[string]Price,
 	logger zerolog.Logger,
 	config []byte,
 ) *WeberaLPPriceProvider {
 	w := &WeberaLPPriceProvider{
 		address:     address,
+		block:       block,
 		logger:      logger,
 		priceMap:    prices,
 		configBytes: config,
@@ -154,12 +157,20 @@ func (w *WeberaLPPriceProvider) GetConfig(ctx context.Context, address string, e
 	return body, nil
 }
 
+func (w *WeberaLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
+	w.block = block
+	if prices != nil {
+		w.priceMap = prices
+	}
+}
+
 ///// Helpers
 
 // tvl fetches the TVL from the Wasabi smart contract.
 func (w *WeberaLPPriceProvider) tvl(ctx context.Context) (decimal.Decimal, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: w.block,
 	}
 
 	assetAmount, err := w.contract.TotalAssets(opts)
@@ -190,7 +201,8 @@ func (w *WeberaLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getTotalSupply fetches the total supply of the LP token.
 func (w *WeberaLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: w.block,
 	}
 	totalSupply, err := w.contract.TotalSupply(opts)
 	if err != nil {
