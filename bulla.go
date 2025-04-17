@@ -34,8 +34,9 @@ type BullaConfig struct {
 // BullaLPPriceProvider defines the provider for Bulla Exchange LP price and TVL.
 type BullaLPPriceProvider struct {
 	address     common.Address
-	logger      zerolog.Logger
+	block       *big.Int
 	priceMap    map[string]Price
+	logger      zerolog.Logger
 	configBytes []byte
 	config      *BullaConfig
 	contract    *sc.Bulla
@@ -45,14 +46,16 @@ type BullaLPPriceProvider struct {
 // NewBullaLPPriceProvider creates a new instance of the BullaLPPriceProvider.
 func NewBullaLPPriceProvider(
 	address common.Address,
+	block *big.Int,
 	prices map[string]Price,
 	logger zerolog.Logger,
 	config []byte,
 ) *BullaLPPriceProvider {
 	b := &BullaLPPriceProvider{
 		address:     address,
-		logger:      logger,
+		block:       block,
 		priceMap:    prices,
+		logger:      logger,
 		configBytes: config,
 	}
 	return b
@@ -191,7 +194,14 @@ func (b *BullaLPPriceProvider) GetConfig(ctx context.Context, address string, cl
 	return body, nil
 }
 
-// Helper methods that would be needed for your implementation
+func (b *BullaLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
+	b.block = block
+	if prices != nil {
+		b.priceMap = prices
+	}
+}
+
+// Internal Helper methods not able to be called except in this file
 
 // totalValue calculates the total value of assets in the pool
 func (b *BullaLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
@@ -235,7 +245,8 @@ func (b *BullaLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getTotalSupply fetches the total supply of the LP token
 func (b *BullaLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: b.block,
 	}
 
 	totalSupply, err := b.contract.TotalSupply(opts)
@@ -250,7 +261,8 @@ func (b *BullaLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, er
 // getPoolBalances fetches the base and quote token balances in the pool
 func (b *BullaLPPriceProvider) getPoolBalances(ctx context.Context) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: b.block,
 	}
 
 	totalAmounts, err := b.contract.GetTotalAmounts(opts)

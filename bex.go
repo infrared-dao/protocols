@@ -29,8 +29,9 @@ type BexPoolConfig struct {
 type BexLPPriceProvider struct {
 	queryAddress   common.Address
 	lpTokenAddress common.Address
-	logger         zerolog.Logger
+	block          *big.Int
 	priceMap       map[string]Price
+	logger         zerolog.Logger
 	configBytes    []byte
 	config         *BexPoolConfig
 	queryContract  *sc.CrocQuery
@@ -41,6 +42,7 @@ type BexLPPriceProvider struct {
 func NewBexLPPriceProvider(
 	crocqueryAddress common.Address,
 	lpTokenAddress common.Address,
+	block *big.Int,
 	prices map[string]Price,
 	logger zerolog.Logger,
 	config []byte,
@@ -48,8 +50,9 @@ func NewBexLPPriceProvider(
 	b := &BexLPPriceProvider{
 		queryAddress:   crocqueryAddress,
 		lpTokenAddress: lpTokenAddress,
-		logger:         logger,
+		block:          block,
 		priceMap:       prices,
+		logger:         logger,
 		configBytes:    config,
 	}
 	return b
@@ -94,8 +97,13 @@ func (b *BexLPPriceProvider) Initialize(ctx context.Context, client *ethclient.C
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD cents (1 USD = 100 cents).
 func (b *BexLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
+	opts := &bind.CallOpts{
+		Context:     ctx,
+		BlockNumber: b.block,
+	}
+
 	// Fetch total supply from ERC20 interface
-	totalSupply, err := b.erc20Contract.ERC20Caller.TotalSupply(&bind.CallOpts{})
+	totalSupply, err := b.erc20Contract.ERC20Caller.TotalSupply(opts)
 	if err != nil {
 		return "", fmt.Errorf("failed to get bex total supply, err: %w", err)
 	}
@@ -202,6 +210,15 @@ func (b *BexLPPriceProvider) GetConfig(ctx context.Context, address string, clie
 	return body, nil
 }
 
+func (b *BexLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
+	b.block = block
+	if prices != nil {
+		b.priceMap = prices
+	}
+}
+
+// Internal Helper methods not able to be called except in this file
+
 func (b *BexLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
 	var err error
 
@@ -240,7 +257,8 @@ func (b *BexLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getUnderlyingBalances fetches the underlying virtual token supply for each token.
 func (b *BexLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: b.block,
 	}
 
 	// BEX Pools on CrocSwap do not actually have a fixed supply we can look up

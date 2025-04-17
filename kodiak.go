@@ -84,8 +84,9 @@ type KodiakConfig struct {
 // KodiakLPPriceProvider defines the provider for Kodiak LP price and TVL.
 type KodiakLPPriceProvider struct {
 	address     common.Address
-	logger      zerolog.Logger
+	block       *big.Int
 	priceMap    map[string]Price
+	logger      zerolog.Logger
 	configBytes []byte
 	config      *KodiakConfig
 	contract    KodiakContract
@@ -94,14 +95,16 @@ type KodiakLPPriceProvider struct {
 // NewKodiakLPPriceProvider creates a new instance of the KodiakLPPriceProvider.
 func NewKodiakLPPriceProvider(
 	address common.Address,
+	block *big.Int,
 	prices map[string]Price,
 	logger zerolog.Logger,
 	config []byte,
 ) *KodiakLPPriceProvider {
 	k := &KodiakLPPriceProvider{
 		address:     address,
-		logger:      logger,
+		block:       block,
 		priceMap:    prices,
+		logger:      logger,
 		configBytes: config,
 	}
 	return k
@@ -237,6 +240,15 @@ func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context, address string, c
 	return body, nil
 }
 
+func (k *KodiakLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
+	k.block = block
+	if prices != nil {
+		k.priceMap = prices
+	}
+}
+
+// Internal Helper methods not able to be called except in this file
+
 func (k *KodiakLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
 	var err error
 
@@ -274,7 +286,8 @@ func (k *KodiakLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getTotalSupply fetches the total supply of the LP token.
 func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: k.block,
 	}
 
 	ts, err := k.contract.TotalSupply(opts)
@@ -290,7 +303,8 @@ func (k *KodiakLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, e
 // getUnderlyingBalances fetches the underlying token balances.
 func (k *KodiakLPPriceProvider) getBalances(ctx context.Context) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: k.block,
 	}
 
 	bs, err := k.contract.GetBalances(opts)

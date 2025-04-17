@@ -17,7 +17,7 @@ import (
 
 const (
 	// Use appropriate RPC URL for your network
-	DefaultRpcURL = "https://rpc.berachain.com" 
+	DefaultRpcURL = "https://rpc.berachain.com"
 )
 
 func main() {
@@ -41,7 +41,7 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Str("price0", *price0Arg).Msg("Invalid price0 value")
 	}
-	
+
 	price1, err := decimal.NewFromString(*price1Arg)
 	if err != nil {
 		logger.Fatal().Err(err).Str("price1", *price1Arg).Msg("Invalid price1 value")
@@ -61,22 +61,22 @@ func main() {
 	poolAddress := common.HexToAddress(*addressArg)
 
 	// First call GetConfig to get the actual token addresses
-	bullaProvider := protocols.NewBullaLPPriceProvider(poolAddress, nil, logger, nil)
+	bullaProvider := protocols.BullaLPPriceProvider{}
 	config, err := bullaProvider.GetConfig(ctx, *addressArg, client)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to get config, please check your contract address")
 		return
 	}
-	
+
 	fmt.Printf("Config: %s\n", string(config))
-	
+
 	// Parse the returned config to extract token addresses
 	var bullaConfig protocols.BullaConfig
 	if err := json.Unmarshal(config, &bullaConfig); err != nil {
 		logger.Fatal().Err(err).Msg("Failed to parse config")
 		return
 	}
-	
+
 	// Setup token prices based on the command-line arguments
 	prices := map[string]protocols.Price{
 		bullaConfig.Token0: {
@@ -99,25 +99,25 @@ func main() {
 		Msg("Using token prices")
 
 	// Create a new provider with the config and prices
-	bullaProvider = protocols.NewBullaLPPriceProvider(poolAddress, prices, logger, config)
+	provider := protocols.NewBullaLPPriceProvider(poolAddress, nil, prices, logger, config)
 
 	// Initialize the provider
-	err = bullaProvider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize Bulla adapter")
 	}
 
 	// Get LP token price
-	lpPrice, err := bullaProvider.LPTokenPrice(ctx)
+	lpPrice, err := provider.LPTokenPrice(ctx)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to get LP token price")
 	}
 	fmt.Printf("LP Token Price: $%s\n", lpPrice)
 
 	// Get TVL
-	tvl, err := bullaProvider.TVL(ctx)
+	tvl, err := provider.TVL(ctx)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to get TVL")
 	}
 	fmt.Printf("TVL: $%s\n", tvl)
-} 
+}

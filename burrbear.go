@@ -33,8 +33,9 @@ type BurrBearPoolConfig struct {
 // BurrBearLPPriceProvider defines the provider for BEX LP price and Pool TVL.
 type BurrBearLPPriceProvider struct {
 	poolAddress   common.Address
-	logger        zerolog.Logger
+	block         *big.Int
 	priceMap      map[string]Price
+	logger        zerolog.Logger
 	configBytes   []byte
 	config        *BurrBearPoolConfig
 	vaultContract *sc.BalancerVault
@@ -44,14 +45,16 @@ type BurrBearLPPriceProvider struct {
 // NewBurrBearLPPriceProvider creates a new instance of the BurrBearLPPriceProvider.
 func NewBurrBearLPPriceProvider(
 	poolAddress common.Address,
+	block *big.Int,
 	prices map[string]Price,
 	logger zerolog.Logger,
 	config []byte,
 ) *BurrBearLPPriceProvider {
 	b := &BurrBearLPPriceProvider{
 		poolAddress: poolAddress,
-		logger:      logger,
+		block:       block,
 		priceMap:    prices,
+		logger:      logger,
 		configBytes: config,
 	}
 	return b
@@ -86,8 +89,13 @@ func (bb *BurrBearLPPriceProvider) Initialize(ctx context.Context, client *ethcl
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD
 func (bb *BurrBearLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
+	opts := &bind.CallOpts{
+		Context:     ctx,
+		BlockNumber: bb.block,
+	}
+
 	// Using GetActualSupply because this is how much is circulating for pools which lock up some LP tokens
-	totalSupply, err := bb.poolContract.BalancerBasePoolCaller.GetActualSupply(&bind.CallOpts{})
+	totalSupply, err := bb.poolContract.BalancerBasePoolCaller.GetActualSupply(opts)
 	if err != nil {
 		return "", err
 	}
@@ -176,6 +184,15 @@ func (bb *BurrBearLPPriceProvider) GetConfig(ctx context.Context, poolAddress st
 	return body, nil
 }
 
+func (bb *BurrBearLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
+	bb.block = block
+	if prices != nil {
+		bb.priceMap = prices
+	}
+}
+
+// Internal Helper methods not able to be called except in this file
+
 func (bb *BurrBearLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
 	var err error
 
@@ -214,7 +231,8 @@ func (bb *BurrBearLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getUnderlyingBalances fetches the underlying virtual token supply for each token.
 func (bb *BurrBearLPPriceProvider) getUnderlyingBalances(ctx context.Context) (map[string]*big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: bb.block,
 	}
 
 	/********************************************

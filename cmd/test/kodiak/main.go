@@ -111,7 +111,7 @@ func main() {
 	// Parse the smart contract address
 	address := common.HexToAddress(*addressArg)
 	// Create a new KodiakLPPriceProvider
-	provider := protocols.NewKodiakLPPriceProvider(address, pmap, logger, configBytes)
+	provider := protocols.NewKodiakLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
 	err = provider.Initialize(ctx, client)

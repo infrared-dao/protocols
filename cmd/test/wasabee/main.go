@@ -90,7 +90,7 @@ func main() {
 		Msg("successfully created Wasabee Config")
 
 	// Initialize the provider
-	provider := protocols.NewWasabeeLPPriceProvider(poolAddress, pmap, logger, configBytes)
+	provider := protocols.NewWasabeeLPPriceProvider(poolAddress, nil, pmap, logger, configBytes)
 	err = provider.Initialize(ctx, client)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize Wasabee adapter")
