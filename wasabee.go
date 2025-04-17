@@ -28,8 +28,9 @@ type WasabeeConfig struct {
 // WasabeeLPPriceProvider defines the provider for Wasabee LP price and TVL.
 type WasabeeLPPriceProvider struct {
 	address     common.Address
-	logger      zerolog.Logger
+	block       *big.Int
 	priceMap    map[string]Price
+	logger      zerolog.Logger
 	configBytes []byte
 	config      *WasabeeConfig
 	contract    *sc.WasabeeVault
@@ -38,14 +39,16 @@ type WasabeeLPPriceProvider struct {
 // NewWasabeeLPPriceProvider creates a new instance of the WasabeeLPPriceProvider.
 func NewWasabeeLPPriceProvider(
 	address common.Address,
+	block *big.Int,
 	prices map[string]Price,
 	logger zerolog.Logger,
 	config []byte,
 ) *WasabeeLPPriceProvider {
 	w := &WasabeeLPPriceProvider{
 		address:     address,
-		logger:      logger,
+		block:       block,
 		priceMap:    prices,
+		logger:      logger,
 		configBytes: config,
 	}
 	return w
@@ -184,6 +187,15 @@ func (w *WasabeeLPPriceProvider) GetConfig(ctx context.Context, address string, 
 	return body, nil
 }
 
+func (w *WasabeeLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
+	w.block = block
+	if prices != nil {
+		w.priceMap = prices
+	}
+}
+
+// Internal Helper methods not able to be called except in this file
+
 // totalValue calculates the total value of assets in the pool
 func (w *WasabeeLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
 	total0, total1, err := w.getPoolBalances(ctx)
@@ -226,7 +238,8 @@ func (w *WasabeeLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getTotalSupply fetches the total supply of the LP token
 func (w *WasabeeLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: w.block,
 	}
 
 	totalSupply, err := w.contract.TotalSupply(opts)
@@ -241,7 +254,8 @@ func (w *WasabeeLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, 
 // getPoolBalances fetches the base and quote token balances in the pool
 func (w *WasabeeLPPriceProvider) getPoolBalances(ctx context.Context) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: w.block,
 	}
 
 	totalAmounts, err := w.contract.GetTotalAmounts(opts)

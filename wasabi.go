@@ -25,8 +25,9 @@ type WasabiConfig struct {
 // WasabiLPPriceProvider defines the provider for Wasabi Token price and TVL.
 type WasabiLPPriceProvider struct {
 	address     common.Address
-	logger      zerolog.Logger
+	block       *big.Int
 	priceMap    map[string]Price
+	logger      zerolog.Logger
 	configBytes []byte
 	config      *WasabiConfig
 	contract    *sc.ERC4626
@@ -35,14 +36,16 @@ type WasabiLPPriceProvider struct {
 // NewWasabiLPPriceProvider creates a new instance of the WasabiLPPriceProvider.
 func NewWasabiLPPriceProvider(
 	address common.Address,
+	block *big.Int,
 	prices map[string]Price,
 	logger zerolog.Logger,
 	config []byte,
 ) *WasabiLPPriceProvider {
 	w := &WasabiLPPriceProvider{
 		address:     address,
-		logger:      logger,
+		block:       block,
 		priceMap:    prices,
+		logger:      logger,
 		configBytes: config,
 	}
 	return w
@@ -154,7 +157,14 @@ func (w *WasabiLPPriceProvider) GetConfig(ctx context.Context, address string, e
 	return body, nil
 }
 
-///// Helpers
+func (w *WasabiLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
+	w.block = block
+	if prices != nil {
+		w.priceMap = prices
+	}
+}
+
+// Internal Helper methods not able to be called except in this file
 
 // tvl fetches the TVL from the Wasabi smart contract.
 func (w *WasabiLPPriceProvider) tvl(ctx context.Context) (decimal.Decimal, error) {
@@ -186,7 +196,8 @@ func (w *WasabiLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getTotalSupply fetches the total supply of the LP token.
 func (w *WasabiLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: w.block,
 	}
 	totalSupply, err := w.contract.TotalSupply(opts)
 	if err != nil {
@@ -198,7 +209,8 @@ func (w *WasabiLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, e
 
 func (w *WasabiLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: w.block,
 	}
 
 	amount0, err := w.contract.TotalAssets(opts)

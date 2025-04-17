@@ -27,8 +27,9 @@ type AquaBeraConfig struct {
 // AquaBeraLPPriceProvider defines the provider for AquaBera LP price and TVL.
 type AquaBeraLPPriceProvider struct {
 	address     common.Address
-	logger      zerolog.Logger
+	block       *big.Int
 	priceMap    map[string]Price
+	logger      zerolog.Logger
 	configBytes []byte
 	config      *AquaBeraConfig
 	contract    *sc.AquaBera
@@ -37,14 +38,16 @@ type AquaBeraLPPriceProvider struct {
 // NewAquaBeraLPPriceProvider creates a new instance of the AquaBeraLPPriceProvider.
 func NewAquaBeraLPPriceProvider(
 	address common.Address,
+	block *big.Int,
 	prices map[string]Price,
 	logger zerolog.Logger,
 	config []byte,
 ) *AquaBeraLPPriceProvider {
 	a := &AquaBeraLPPriceProvider{
 		address:     address,
-		logger:      logger,
+		block:       block,
 		priceMap:    prices,
+		logger:      logger,
 		configBytes: config,
 	}
 	return a
@@ -177,6 +180,15 @@ func (a *AquaBeraLPPriceProvider) GetConfig(ctx context.Context, address string,
 	return body, nil
 }
 
+func (a *AquaBeraLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
+	a.block = block
+	if prices != nil {
+		a.priceMap = prices
+	}
+}
+
+// Internal Helper methods not able to be called except in this file
+
 // Helper method to calculate the total value of underlying assets
 func (a *AquaBeraLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
 	var err error
@@ -215,7 +227,8 @@ func (a *AquaBeraLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 // getTotalSupply fetches the total supply of the LP token.
 func (a *AquaBeraLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: a.block,
 	}
 	ts, err := a.contract.TotalSupply(opts)
 	if err != nil {
@@ -229,7 +242,8 @@ func (a *AquaBeraLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int,
 // getUnderlyingBalances fetches the underlying token balances.
 func (a *AquaBeraLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: a.block,
 	}
 	ubs, err := a.contract.GetTotalAmounts(opts)
 	if err != nil {

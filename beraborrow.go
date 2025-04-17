@@ -38,8 +38,8 @@ type BeraBorrowCDPConfig struct {
 // BeraBorrowLPPriceProvider defines the provider for BeraBorrow CDP price and CDP TVL.
 type BeraBorrowLPPriceProvider struct {
 	LPTAddress    common.Address
-	logger        zerolog.Logger
 	block         *big.Int
+	logger        zerolog.Logger
 	configBytes   []byte
 	config        *BeraBorrowCDPConfig
 	lptContract   *sc.BeraBorrowIWCaller
@@ -56,8 +56,8 @@ func NewBeraBorrowLPPriceProvider(
 ) *BeraBorrowLPPriceProvider {
 	b := &BeraBorrowLPPriceProvider{
 		LPTAddress:  LPTAddress,
-		logger:      logger,
 		block:       block,
+		logger:      logger,
 		configBytes: config,
 	}
 	return b
@@ -104,12 +104,11 @@ func (b *BeraBorrowLPPriceProvider) Initialize(ctx context.Context, client *ethc
 // LPTokenPrice returns the current price of the protocol's LP token in USD
 func (b *BeraBorrowLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	opts := &bind.CallOpts{
-		Pending:     false,
 		Context:     ctx,
 		BlockNumber: b.block,
 	}
 
-	tvl, err := b.TotalValue(ctx)
+	tvl, err := b.getTotalValue(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -132,78 +131,12 @@ func (b *BeraBorrowLPPriceProvider) LPTokenPrice(ctx context.Context) (string, e
 // TVL returns the Total Value Locked in the CDP in USD
 // Actually gets the TVL of the CICV which is 1-1 with the TVL of the IW which is the LP token
 func (b *BeraBorrowLPPriceProvider) TVL(ctx context.Context) (string, error) {
-	tvl, err := b.TotalValue(ctx)
+	tvl, err := b.getTotalValue(ctx)
 	if err != nil {
 		return "", err
 	}
 
 	return tvl.StringFixed(roundingDecimals), nil
-}
-
-func (b *BeraBorrowLPPriceProvider) TotalValue(ctx context.Context) (decimal.Decimal, error) {
-	var value decimal.Decimal
-	var err error
-
-	if b.config.ColVaultAddress == sNECTName {
-		value, err = b.sNECTTotalValue(ctx)
-	} else {
-		value, err = b.cicvTotalValue(ctx)
-	}
-
-	return value, err
-}
-
-func (b *BeraBorrowLPPriceProvider) sNECTTotalValue(ctx context.Context) (decimal.Decimal, error) {
-	opts := &bind.CallOpts{
-		Pending:     false,
-		Context:     ctx,
-		BlockNumber: b.block,
-	}
-
-	asset, err := b.snectContract.Asset(opts)
-	if err != nil {
-		return decimal.Zero, fmt.Errorf("failed to get underlying asset for sNECT, err: %w", err)
-	}
-
-	pricePerToken18, err := b.snectContract.GetPrice(opts, asset)
-	if err != nil {
-		return decimal.Zero, fmt.Errorf("failed to get underlying token price for sNECT, err: %w", err)
-	}
-	pricePerToken := NormalizeAmount(pricePerToken18, USDPriceDecimals)
-
-	totalAssets, err := b.snectContract.TotalAssets(opts)
-	if err != nil {
-		return decimal.Zero, fmt.Errorf("failed to get beraborrow total supply from CICV contract, err: %w", err)
-	}
-	numTokens := NormalizeAmount(totalAssets, b.config.CDPDecimals)
-
-	totalValue := numTokens.Mul(pricePerToken)
-
-	return totalValue, nil
-}
-
-func (b *BeraBorrowLPPriceProvider) cicvTotalValue(ctx context.Context) (decimal.Decimal, error) {
-	opts := &bind.CallOpts{
-		Pending:     false,
-		Context:     ctx,
-		BlockNumber: b.block,
-	}
-
-	pricePerToken18, err := b.cdpContract.FetchPrice(opts)
-	if err != nil {
-		return decimal.Zero, fmt.Errorf("failed to fetchPrice from beraborrow CICV contract, err: %w", err)
-	}
-	pricePerToken := NormalizeAmount(pricePerToken18, USDPriceDecimals)
-
-	cdpTotalSupply, err := b.cdpContract.TotalSupply(opts)
-	if err != nil {
-		return decimal.Zero, fmt.Errorf("failed to get beraborrow total supply from CICV contract, err: %w", err)
-	}
-	numTokens := NormalizeAmount(cdpTotalSupply, b.config.CDPDecimals)
-
-	cdpTotalValue := numTokens.Mul(pricePerToken)
-
-	return cdpTotalValue, nil
 }
 
 func (b *BeraBorrowLPPriceProvider) GetConfig(ctx context.Context, lpAddress string, client *ethclient.Client) ([]byte, error) {
@@ -318,4 +251,74 @@ func (b *BeraBorrowLPPriceProvider) GetConfig(ctx context.Context, lpAddress str
 	}
 
 	return body, nil
+}
+
+func (b *BeraBorrowLPPriceProvider) UpdateBlock(block *big.Int) {
+	b.block = block
+}
+
+// Internal Helper methods not able to be called except in this file
+
+func (b *BeraBorrowLPPriceProvider) getTotalValue(ctx context.Context) (decimal.Decimal, error) {
+	var value decimal.Decimal
+	var err error
+
+	if b.config.ColVaultAddress == sNECTName {
+		value, err = b.sNECTTotalValue(ctx)
+	} else {
+		value, err = b.cicvTotalValue(ctx)
+	}
+
+	return value, err
+}
+
+func (b *BeraBorrowLPPriceProvider) sNECTTotalValue(ctx context.Context) (decimal.Decimal, error) {
+	opts := &bind.CallOpts{
+		Context:     ctx,
+		BlockNumber: b.block,
+	}
+
+	asset, err := b.snectContract.Asset(opts)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("failed to get underlying asset for sNECT, err: %w", err)
+	}
+
+	pricePerToken18, err := b.snectContract.GetPrice(opts, asset)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("failed to get underlying token price for sNECT, err: %w", err)
+	}
+	pricePerToken := NormalizeAmount(pricePerToken18, USDPriceDecimals)
+
+	totalAssets, err := b.snectContract.TotalAssets(opts)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("failed to get beraborrow total supply from CICV contract, err: %w", err)
+	}
+	numTokens := NormalizeAmount(totalAssets, b.config.CDPDecimals)
+
+	totalValue := numTokens.Mul(pricePerToken)
+
+	return totalValue, nil
+}
+
+func (b *BeraBorrowLPPriceProvider) cicvTotalValue(ctx context.Context) (decimal.Decimal, error) {
+	opts := &bind.CallOpts{
+		Context:     ctx,
+		BlockNumber: b.block,
+	}
+
+	pricePerToken18, err := b.cdpContract.FetchPrice(opts)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("failed to fetchPrice from beraborrow CICV contract, err: %w", err)
+	}
+	pricePerToken := NormalizeAmount(pricePerToken18, USDPriceDecimals)
+
+	cdpTotalSupply, err := b.cdpContract.TotalSupply(opts)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("failed to get beraborrow total supply from CICV contract, err: %w", err)
+	}
+	numTokens := NormalizeAmount(cdpTotalSupply, b.config.CDPDecimals)
+
+	cdpTotalValue := numTokens.Mul(pricePerToken)
+
+	return cdpTotalValue, nil
 }

@@ -69,7 +69,7 @@ func main() {
 	// Parse the smart contract address
 	address := common.HexToAddress(*addressArg)
 	// Create a new NewWasabiLPPriceProvider
-	provider := protocols.NewWasabiLPPriceProvider(address, pmap, logger, configBytes)
+	provider := protocols.NewWasabiLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
 	err = provider.Initialize(ctx, client)

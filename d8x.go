@@ -32,6 +32,7 @@ type D8xConfig struct {
 
 type D8xLPPriceProvider struct {
 	address             common.Address
+	block               *big.Int
 	logger              zerolog.Logger
 	configBytes         []byte
 	config              D8xConfig
@@ -41,9 +42,15 @@ type D8xLPPriceProvider struct {
 
 // NewD8xLPPriceProvider returns a new instance of D8XLPPriceProvider with the assigned config
 // and the D8X contract address
-func NewD8xLPPriceProvider(address common.Address, logger zerolog.Logger, config []byte) *D8xLPPriceProvider {
+func NewD8xLPPriceProvider(
+	address common.Address,
+	block *big.Int,
+	logger zerolog.Logger,
+	config []byte,
+) *D8xLPPriceProvider {
 	d := &D8xLPPriceProvider{
 		address:     address,
+		block:       block,
 		logger:      logger,
 		configBytes: config,
 	}
@@ -75,7 +82,8 @@ func (d8x *D8xLPPriceProvider) Initialize(ctx context.Context, client *ethclient
 // TVL returns the Total Value Locked in the pool in USD.
 func (d8x *D8xLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: d8x.block,
 	}
 
 	// get current liquidity pool data
@@ -108,7 +116,8 @@ func (d8x *D8xLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error)
 	// we call getShareTokenPriceD18(uint8 _poolId) which
 	// returns the price of dbUSD in bUSD decimal 18 format
 	opts := &bind.CallOpts{
-		Context: ctx,
+		Context:     ctx,
+		BlockNumber: d8x.block,
 	}
 
 	// get the share token price in collateral currency
@@ -184,6 +193,10 @@ func (d8x *D8xLPPriceProvider) GetConfig(ctx context.Context, address string, et
 	}
 
 	return body, nil
+}
+
+func (d8x *D8xLPPriceProvider) UpdateBlock(block *big.Int) {
+	d8x.block = block
 }
 
 // ABDKToDecimal converts an ABDK fixed point 64.64 number to deicmal.Decimal
