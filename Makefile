@@ -43,6 +43,8 @@ build: codegen lint
 	rm -f $(BIN_DIR)/wasabi
 	go build -o $(BIN_DIR)/wasabi -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/wasabi/main.go
+	go build -o $(BIN_DIR)/webera -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/webera/main.go		
 
 lint:
 	golangci-lint run
@@ -70,3 +72,4 @@ codegen:
 	abigen --abi assets/abis/kodiakisland.abi --pkg sc --type KodiakIsland --out internal/sc/kodiak_island.go
 	abigen --abi assets/abis/uniswapv2pair.abi --pkg sc --type UniswapV2 --out internal/sc/uniswap_v2.go
 	abigen --abi assets/abis/wasabeevault.abi --pkg sc --type WasabeeVault --out internal/sc/wasabee_vault.go
+	abigen --abi assets/abis/weberavault.abi --pkg sc --type WeberaVault --out internal/sc/webera_vault.go
