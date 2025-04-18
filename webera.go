@@ -22,7 +22,7 @@ type WeberaConfig struct {
 	LPTDecimals uint   `json:"lpt_decimals"`
 }
 
-// WeberaLPPriceProvider defines the provider for Wasabi Token price and TVL.
+// WeberaLPPriceProvider defines the provider for Webera Token price and TVL.
 type WeberaLPPriceProvider struct {
 	address     common.Address
 	block       *big.Int
@@ -51,7 +51,7 @@ func NewWeberaLPPriceProvider(
 	return w
 }
 
-// Initialize checks the configuration/data provided and instantiates the Wasabi smart contract.
+// Initialize checks the configuration/data provided and instantiates the WeBera smart contract.
 func (w *WeberaLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
 	var err error
 
@@ -71,7 +71,7 @@ func (w *WeberaLPPriceProvider) Initialize(ctx context.Context, client *ethclien
 
 	w.contract, err = sc.NewWeberaVault(w.address, client)
 	if err != nil {
-		w.logger.Error().Err(err).Msg("failed to instantiate Wasabi smart contract")
+		w.logger.Error().Err(err).Msg("failed to instantiate WeBera smart contract")
 		return err
 	}
 
@@ -126,7 +126,7 @@ func (w *WeberaLPPriceProvider) GetConfig(ctx context.Context, address string, e
 
 	contract, err := sc.NewWeberaVault(common.HexToAddress(address), ethClient)
 	if err != nil {
-		err = fmt.Errorf("failed to instantiate Wasabi smart contract, %v", err)
+		err = fmt.Errorf("failed to instantiate WeBera smart contract, %v", err)
 		return nil, err
 	}
 
@@ -166,7 +166,7 @@ func (w *WeberaLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pr
 
 ///// Helpers
 
-// tvl fetches the TVL from the Wasabi smart contract.
+// tvl fetches the TVL from the Webera smart contract.
 func (w *WeberaLPPriceProvider) tvl(ctx context.Context) (decimal.Decimal, error) {
 	opts := &bind.CallOpts{
 		Context:     ctx,
