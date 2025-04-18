@@ -115,7 +115,7 @@ func (bb *BurrBearLPPriceProvider) LPTokenPrice(ctx context.Context) (string, er
 	totalSupplyDecimal := NormalizeAmount(totalSupply, bb.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
 
-	bb.logger.Info().
+	bb.logger.Debug().
 		Str("totalValue", totalValue.String()).
 		Str("totalSupply", totalSupplyDecimal.String()).
 		Str("pricePerToken", pricePerToken.String()).
@@ -202,7 +202,7 @@ func (bb *BurrBearLPPriceProvider) totalValue(ctx context.Context) (decimal.Deci
 		return decimal.Zero, err
 	}
 
-	bb.logger.Info().
+	bb.logger.Debug().
 		Msgf("Token Balances: %+v", balanceData)
 
 	totalValue := decimal.Zero

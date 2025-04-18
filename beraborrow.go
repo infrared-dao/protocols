@@ -121,7 +121,7 @@ func (b *BeraBorrowLPPriceProvider) LPTokenPrice(ctx context.Context) (string, e
 	numTokens := NormalizeAmount(lpTotalSupply, b.config.LPTDecimals)
 	pricePerToken := tvl.Div(numTokens)
 
-	b.logger.Info().
+	b.logger.Debug().
 		Str("pricePerToken", pricePerToken.String()).
 		Msg("LP token price calculated successfully")
 
