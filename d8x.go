@@ -195,8 +195,9 @@ func (d8x *D8xLPPriceProvider) GetConfig(ctx context.Context, address string, et
 	return body, nil
 }
 
-func (d8x *D8xLPPriceProvider) UpdateBlock(block *big.Int) {
+func (d8x *D8xLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
 	d8x.block = block
+	// prices param can be ignored since d8x uses onchain oracles
 }
 
 // ABDKToDecimal converts an ABDK fixed point 64.64 number to deicmal.Decimal
