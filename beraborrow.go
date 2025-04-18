@@ -253,8 +253,9 @@ func (b *BeraBorrowLPPriceProvider) GetConfig(ctx context.Context, lpAddress str
 	return body, nil
 }
 
-func (b *BeraBorrowLPPriceProvider) UpdateBlock(block *big.Int) {
+func (b *BeraBorrowLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
 	b.block = block
+	// prices param can be ignored because beraborrow uses pricing onchain
 }
 
 // Internal Helper methods not able to be called except in this file

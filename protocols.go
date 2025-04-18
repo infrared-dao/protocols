@@ -32,6 +32,10 @@ type Protocol interface {
 	// TVL returns the Total Value Locked in the protocol in USD.
 	// Returns an error if the TVL cannot be determined.
 	TVL(ctx context.Context) (string, error)
+
+	// UpdateBlock sets the internal block and priceMap state to different time
+	// If the protocol doesn't need a price map the second param can be nil
+	UpdateBlock(block *big.Int, prices map[string]Price)
 }
 
 // Useful helper functions common across all Protocol adapter implementations
