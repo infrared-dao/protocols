@@ -98,7 +98,7 @@ func (d *DolomiteLPPriceProvider) LPTokenPrice(ctx context.Context) (string, err
 	tsd := NormalizeAmount(ts, d.config.LPTDecimals)
 	price := tvl.Div(tsd)
 
-	d.logger.Info().
+	d.logger.Debug().
 		Str("totalValue", tvl.String()).
 		Str("totalSupply", ts.String()).
 		Str("pricePerToken", price.String()).
@@ -113,7 +113,7 @@ func (d *DolomiteLPPriceProvider) TVL(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	d.logger.Info().Str("tvl", totalValue.String()).Msg("successfully fetched TVL")
+	d.logger.Debug().Str("tvl", totalValue.String()).Msg("successfully fetched TVL")
 	return totalValue.StringFixed(roundingDecimals), nil
 }
 

@@ -120,7 +120,7 @@ func (b *BullaLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error)
 	totalSupplyDecimal := NormalizeAmount(totalSupply, b.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
 
-	b.logger.Info().
+	b.logger.Debug().
 		Str("totalValue", totalValue.String()).
 		Str("totalSupply", totalSupplyDecimal.String()).
 		Str("pricePerToken", pricePerToken.String()).
@@ -136,7 +136,7 @@ func (b *BullaLPPriceProvider) TVL(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	b.logger.Info().
+	b.logger.Debug().
 		Str("totalValue", totalValue.String()).
 		Msg("TVL calculated successfully")
 

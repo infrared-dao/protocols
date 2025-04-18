@@ -98,7 +98,7 @@ func (w *WeberaLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 	tsd := NormalizeAmount(ts, w.config.LPTDecimals)
 	price := tvl.Div(tsd)
 
-	w.logger.Info().
+	w.logger.Debug().
 		Str("totalValue", tvl.String()).
 		Str("totalSupply", ts.String()).
 		Str("pricePerToken", price.String()).
@@ -113,7 +113,7 @@ func (w *WeberaLPPriceProvider) TVL(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	w.logger.Info().Str("tvl", totalValue.String()).Msg("successfully fetched TVL")
+	w.logger.Debug().Str("tvl", totalValue.String()).Msg("successfully fetched TVL")
 	return totalValue.StringFixed(roundingDecimals), nil
 }
 

@@ -113,7 +113,7 @@ func (w *WasabeeLPPriceProvider) LPTokenPrice(ctx context.Context) (string, erro
 	totalSupplyDecimal := NormalizeAmount(totalSupply, w.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
 
-	w.logger.Info().
+	w.logger.Debug().
 		Str("totalValue", totalValue.String()).
 		Str("totalSupply", totalSupplyDecimal.String()).
 		Str("pricePerToken", pricePerToken.String()).
@@ -129,7 +129,7 @@ func (w *WasabeeLPPriceProvider) TVL(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	w.logger.Info().
+	w.logger.Debug().
 		Str("totalValue", totalValue.String()).
 		Msg("TVL calculated successfully")
 

@@ -123,7 +123,7 @@ func (b *BexLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	totalSupplyDecimal := NormalizeAmount(totalSupply, b.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
 
-	b.logger.Info().
+	b.logger.Debug().
 		Str("totalValue", totalValue.String()).
 		Str("totalSupply", totalSupplyDecimal.String()).
 		Str("pricePerToken", pricePerToken.String()).
@@ -139,7 +139,7 @@ func (b *BexLPPriceProvider) TVL(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	b.logger.Info().
+	b.logger.Debug().
 		Str("totalValue", totalValue.String()).
 		Msg("TVL calculated successfully")
 
@@ -291,7 +291,7 @@ func (b *BexLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.In
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get bex pool liquidity, err: %w", err)
 	}
-	b.logger.Info().Msgf("liquidity is %s", liquidity.String())
+	b.logger.Debug().Msgf("liquidity is %s", liquidity.String())
 	liquidityDecimal := decimal.NewFromBigInt(liquidity, 0)
 
 	baseSupplyDecimal := liquidityDecimal.Mul(sqrtRatio)
@@ -306,6 +306,6 @@ func (b *BexLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.In
 		return nil, nil, errors.New("unable to parse baseSupply as *big.Int from string")
 	}
 
-	b.logger.Info().Msgf("base and quote supply are %s %s", baseSupply.String(), quoteSupply.String())
+	b.logger.Debug().Msgf("base and quote supply are %s %s", baseSupply.String(), quoteSupply.String())
 	return baseSupply, quoteSupply, nil
 }

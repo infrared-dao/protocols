@@ -107,7 +107,7 @@ func (a *AquaBeraLPPriceProvider) LPTokenPrice(ctx context.Context) (string, err
 	totalSupplyDecimal := NormalizeAmount(totalSupply, a.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
 
-	a.logger.Info().
+	a.logger.Debug().
 		Str("totalValue", totalValue.String()).
 		Str("totalSupply", totalSupplyDecimal.String()).
 		Str("pricePerToken", pricePerToken.String()).
@@ -123,7 +123,7 @@ func (a *AquaBeraLPPriceProvider) TVL(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	a.logger.Info().
+	a.logger.Debug().
 		Str("totalValue", totalValue.String()).
 		Msg("TVL calculated successfully")
 

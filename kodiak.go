@@ -166,7 +166,7 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 	totalSupplyDecimal := NormalizeAmount(totalSupply, k.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
 
-	k.logger.Info().
+	k.logger.Debug().
 		Str("totalValue", totalValue.String()).
 		Str("totalSupply", totalSupplyDecimal.String()).
 		Str("pricePerToken", pricePerToken.String()).
@@ -182,7 +182,7 @@ func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	k.logger.Info().
+	k.logger.Debug().
 		Str("totalValue", totalValue.String()).
 		Msg("TVL calculated successfully")
 
