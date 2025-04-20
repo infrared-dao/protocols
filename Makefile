@@ -28,6 +28,9 @@ build: codegen lint
 	rm -f $(BIN_DIR)/burrbear
 	go build -o $(BIN_DIR)/burrbear -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/burrbear/main.go	
+	rm -f $(BIN_DIR)/d2
+	go build -o $(BIN_DIR)/d2 -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/d2/main.go
 	rm -f $(BIN_DIR)/d8x
 	go build -o $(BIN_DIR)/d8x -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/d8x/main.go		
@@ -66,6 +69,7 @@ codegen:
 	abigen --abi assets/abis/beraborrowsnect.abi --pkg sc --type BeraBorrowSNECT --out internal/sc/beraborrow_snect.go
 	abigen --abi assets/abis/bulla.abi --pkg sc --type Bulla --out internal/sc/bulla.go
 	abigen --abi assets/abis/aquabera.abi --pkg sc --type AquaBera --out internal/sc/aquabera.go
+	abigen --abi assets/abis/d2vault.abi --pkg sc --type D2Vault --out internal/sc/d2_vault.go
 	abigen --abi assets/abis/d8xpoolmanager.abi --pkg sc --type D8xPoolManager --out internal/sc/d8x_pool_manager.go
 	abigen --abi assets/abis/d8xsharetoken.abi --pkg sc --type D8xShareToken --out internal/sc/d8x_share_token.go	
 	abigen --abi assets/abis/aggregatorV3.abi --pkg sc --type AggregatorV3 --out internal/sc/aggregatorV3.go
