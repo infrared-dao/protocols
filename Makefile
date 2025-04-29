@@ -28,6 +28,9 @@ build: codegen lint
 	rm -f $(BIN_DIR)/burrbear
 	go build -o $(BIN_DIR)/burrbear -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/burrbear/main.go	
+	rm -f $(BIN_DIR)/concrete
+	go build -o $(BIN_DIR)/concrete -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/concrete/main.go			
 	rm -f $(BIN_DIR)/d2
 	go build -o $(BIN_DIR)/d2 -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/d2/main.go
@@ -60,6 +63,7 @@ codegen:
 	mkdir -p internal/sc
 	abigen --abi assets/abis/erc20.abi --pkg sc --type ERC20 --out internal/sc/erc20.go
 	abigen --abi assets/abis/4626.abi --pkg sc --type ERC4626 --out internal/sc/erc_4626.go
+	abigen --abi assets/abis/concretevault.abi --pkg sc --type ConcreteVault --out internal/sc/concrete_vault.go
 	abigen --abi assets/abis/croclperc20.abi --pkg sc --type CrocLPERC20 --out internal/sc/croc_lp_erc20.go
 	abigen --abi assets/abis/crocquery.abi --pkg sc --type CrocQuery --out internal/sc/croc_query.go
 	abigen --abi assets/abis/balancerbasepool.abi --pkg sc --type BalancerBasePool --out internal/sc/balancer_base_pool.go

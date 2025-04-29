@@ -20,22 +20,17 @@ func main() {
 		Logger()
 
 	// Command-line arguments
-	addressArg := flag.String("address", "0x55a050f76541c2554e9dfa3a0b4e665914bf92ea", "Smart contract address (Default wBera Vault)")
-	price0Arg := flag.String("price0", "0x6969696969696969696969696969696969696969:3.687", "address:price of token 0, colon delimited (Bera price)")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain Mainnet RPC URL")
+	addressArg := flag.String("address", "0xec577e989c02b294d5b8f4324224a5b63f5beef7", "Smart contract address (Default wBera Vault)")
+	price0Arg := flag.String("price0", "0x6969696969696969696969696969696969696969:3.792", "address:price of token 0, colon delimited (Bera price)")
+	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Ethereum RPC URL")
 	flag.Parse()
 
-	// WeBera adapter can handle WeBera vaults
+	// Concrete adapter can handle Concrete vaults
 
-	// weBERA vault
-	// webera -address=0x55a050f76541c2554e9dfa3a0b4e665914bf92ea
-	// 		  -price0=0x6969696969696969696969696969696969696969:3.687
-	//		  -rpcurl=berchain-rpc-provider
-
-	// weiBERA vault
-	// webera -address=0x396a3d0b799b1a0b1eaa17e75b4dea412400860b
-	// 		  -price0=0x9b6761bf2397Bb5a6624a856cC84A3A14Dcd3fe5:3.724
-	//		  -rpcurl=berchain-rpc-provider
+	// Concrete vault
+	// concrete -address=0xec577e989c02b294d5b8f4324224a5b63f5beef7
+	// 			-price0=0x6969696969696969696969696969696969696969:3.792
+	//			-rpcurl=berchain-rpc-provider
 
 	// Validate required arguments
 	missingArgs := []string{}
@@ -72,7 +67,7 @@ func main() {
 		logger.Fatal().Err(err).Str("rpcurl", *rpcURLArg).Msg("Failed to connect to Ethereum client")
 	}
 
-	cp := protocols.WeberaLPPriceProvider{}
+	cp := protocols.ConcreteLPPriceProvider{}
 	configBytes, err := cp.GetConfig(ctx, *addressArg, client)
 	if err != nil {
 		logger.Fatal().Err(err).Str("address", *addressArg).Msg("Failed to get config")
@@ -80,8 +75,8 @@ func main() {
 
 	// Parse the smart contract address
 	address := common.HexToAddress(*addressArg)
-	// Create a new NewWeberaLPPriceProvider
-	provider := protocols.NewWeberaLPPriceProvider(address, nil, pmap, logger, configBytes)
+	// Create a new NewConcreteLPPriceProvider
+	provider := protocols.NewConcreteLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
 	err = provider.Initialize(ctx, client)
