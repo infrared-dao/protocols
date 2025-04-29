@@ -1,3 +1,5 @@
+[![License](https://img.shields.io/github/license/infrared-dao/protocols)](https://github.com/infrared-dao/protocols/blob/master/LICENSE)
+
 # Protocols Adapters Repo
 This repo implements adapters to different berachain protocols needed to compute LP token prices / TVL for vaults of interest to the infrared project.
 
