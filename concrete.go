@@ -85,9 +85,8 @@ func (c *ConcreteLPPriceProvider) LPTokenPrice(ctx context.Context) (string, err
 	}
 
 	if ts.Cmp(big.NewInt(0)) == 0 {
-		err = fmt.Errorf("total supply is zero")
-		c.logger.Error().Err(err).Msg("failed to fetch total supply")
-		return "", err
+		// it's expected to temporarily have zero total supply
+		return "", ErrPriceNotReadyYet
 	}
 
 	tvl, err := c.tvl(ctx)
