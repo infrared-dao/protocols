@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -108,5 +109,17 @@ func main() {
 			Str("TVL (USD)", tvl).
 			Msg("successfully fetched TVL")
 	}
+
+	// Test Offchain Webera API for fetching vault APR
+	stakingTokens := []string{
+		"0x396A3D0B799B1a0B1EaA17e75B4DEa412400860b",
+		"0x55a050f76541C2554e9dfA3A0b4e665914bF92EA",
+	}
+	weberaAPRs, err := fetchers.FetchWeberaAPRs(ctx, stakingTokens)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("bad response from webera API")
+	}
+	logger.Info().
+		Msgf("fetched webera vault APRs from API %+v", weberaAPRs)
 
 }
