@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -25,7 +26,7 @@ func main() {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
 
 	// Parse command-line arguments
-	addressArg := flag.String("address", "", "Smart contract address of Bulla pool") // No default, must be provided
+	addressArg := flag.String("address", "0xcffbfd665bedb19b47837461a5abf4388c560d35", "Address of Bulla pool")
 	rpcURLArg := flag.String("rpcurl", DefaultRpcURL, "RPC URL for the blockchain")
 	price0Arg := flag.String("price0", "1.0", "Price of token0 in USD")
 	price1Arg := flag.String("price1", "1.0", "Price of token1 in USD")
@@ -120,4 +121,16 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to get TVL")
 	}
 	fmt.Printf("TVL: $%s\n", tvl)
+
+	// Test Offchain Gamma API for fetching bulla gamma managed pool APRs
+	stakingTokens := []string{
+		"0xb5d46214f4ec7f910cb433e412d32ee817986e90",
+		"0xcffbfd665bedb19b47837461a5abf4388c560d35",
+	}
+	bullaAPRs, err := fetchers.FetchBullaAPRs(ctx, stakingTokens)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("bad response from gamma API")
+	}
+	logger.Info().
+		Msgf("fetched bulla APRs from API %+v", bullaAPRs)
 }
