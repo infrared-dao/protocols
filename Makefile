@@ -40,6 +40,9 @@ build: codegen lint
 	rm -f $(BIN_DIR)/dolomite
 	go build -o $(BIN_DIR)/dolomite -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/dolomite/main.go
+	rm -f $(BIN_DIR)/etherfi
+	go build -o $(BIN_DIR)/etherfi -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/etherfi/main.go
 	rm -f $(BIN_DIR)/kodiak
 	go build -o $(BIN_DIR)/kodiak -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/kodiak/main.go
@@ -76,6 +79,8 @@ codegen:
 	abigen --abi assets/abis/d2vault.abi --pkg sc --type D2Vault --out internal/sc/d2_vault.go
 	abigen --abi assets/abis/d8xpoolmanager.abi --pkg sc --type D8xPoolManager --out internal/sc/d8x_pool_manager.go
 	abigen --abi assets/abis/d8xsharetoken.abi --pkg sc --type D8xShareToken --out internal/sc/d8x_share_token.go	
+	abigen --abi assets/abis/etherfiaccountant.abi --pkg sc --type EtherfiAccountant --out internal/sc/etherfi_accountant.go
+	abigen --abi assets/abis/etherfivault.abi --pkg sc --type EtherfiVault --out internal/sc/etherfi_vault.go
 	abigen --abi assets/abis/aggregatorV3.abi --pkg sc --type AggregatorV3 --out internal/sc/aggregatorV3.go
 	abigen --abi assets/abis/kodiakisland.abi --pkg sc --type KodiakIsland --out internal/sc/kodiak_island.go
 	abigen --abi assets/abis/uniswapv2pair.abi --pkg sc --type UniswapV2 --out internal/sc/uniswap_v2.go
