@@ -43,6 +43,9 @@ build: codegen lint
 	rm -f $(BIN_DIR)/etherfi
 	go build -o $(BIN_DIR)/etherfi -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/etherfi/main.go
+	rm -f $(BIN_DIR)/euler
+	go build -o $(BIN_DIR)/euler -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/euler/main.go
 	rm -f $(BIN_DIR)/kodiak
 	go build -o $(BIN_DIR)/kodiak -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/kodiak/main.go
@@ -84,6 +87,7 @@ codegen:
 	abigen --abi assets/abis/d8xsharetoken.abi --pkg sc --type D8xShareToken --out internal/sc/d8x_share_token.go	
 	abigen --abi assets/abis/etherfiaccountant.abi --pkg sc --type EtherfiAccountant --out internal/sc/etherfi_accountant.go
 	abigen --abi assets/abis/etherfivault.abi --pkg sc --type EtherfiVault --out internal/sc/etherfi_vault.go
+	abigen --abi assets/abis/eulervault.abi --pkg sc --type EulerVault --out internal/sc/euler_vault.go	
 	abigen --abi assets/abis/aggregatorV3.abi --pkg sc --type AggregatorV3 --out internal/sc/aggregatorV3.go
 	abigen --abi assets/abis/kodiakisland.abi --pkg sc --type KodiakIsland --out internal/sc/kodiak_island.go
 	abigen --abi assets/abis/solvbtc.abi --pkg sc --type SolvBTC --out internal/sc/solvbtc.go	
