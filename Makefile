@@ -98,3 +98,4 @@ codegen:
 	abigen --abi assets/abis/uniswapv2pair.abi --pkg sc --type UniswapV2 --out internal/sc/uniswap_v2.go
 	abigen --abi assets/abis/wasabeevault.abi --pkg sc --type WasabeeVault --out internal/sc/wasabee_vault.go
 	abigen --abi assets/abis/weberavault.abi --pkg sc --type WeberaVault --out internal/sc/webera_vault.go
+	abigen --abi assets/abis/paddlefi.abi --pkg sc --type Paddlefi --out internal/sc/paddlefi.go
