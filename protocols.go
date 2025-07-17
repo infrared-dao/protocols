@@ -49,17 +49,8 @@ type Price struct {
 	Price     decimal.Decimal
 }
 
-// Given a token amount as a big.Int and the number of decimals (uint) get a decimal.Decimal amount
+// NormalizeAmount returns a token amount as a big.Int and the number of decimals (uint) get a decimal.Decimal amount
 func NormalizeAmount(amount *big.Int, decimals uint) decimal.Decimal {
-	divisor := pow10(decimals)
+	divisor := decimal.New(1, int32(decimals))
 	return decimal.NewFromBigInt(amount, 0).Div(divisor)
-}
-
-// Helper to raise 10 to the power passed in and produce a decimal.Decimal for normalization
-func pow10(n uint) decimal.Decimal {
-	exp := int64(n)
-	base := decimal.NewFromInt(10)
-	result := base.Pow(decimal.NewFromInt(exp))
-
-	return result
 }
