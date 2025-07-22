@@ -20,7 +20,7 @@ func main() {
 		Logger()
 
 	// Command-line arguments
-	addressArg := flag.String("address", "0xFF21f46Bc9D78125705eEF6EfCA62f9420cfDB9b", "Smart contract address (Default SolvBTC.BERA)")
+	addressArg := flag.String("address", "0xFF21f46Bc9D78125705eEF6EfCA62f9420cfDB9b", "Smart contract address (Default satSolvBTC.BERA)")
 	price0Arg := flag.String("price0", "0x541FD749419CA806a8bc7da8ac23D346f2dF8B77:118805.23", "address:price of asset, colon delimited (SolvBTC)")
 	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain Mainnet RPC URL")
 	flag.Parse()
