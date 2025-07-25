@@ -21,8 +21,6 @@ import (
 // It isn't rebasing, they pay the yield directly to user wallets, we get SolvBTC price from oracles already
 // Therefore, this adapter is literally just a pass through for the LP price
 
-const satSolvBTC = "0xFF21f46Bc9D78125705eEF6EfCA62f9420cfDB9b"
-
 var _ Protocol = &SatLayerLPPriceProvider{}
 
 type SatLayerConfig struct {
@@ -30,7 +28,7 @@ type SatLayerConfig struct {
 	LPTDecimals uint   `json:"lpt_decimals"`
 }
 
-// SatLayerLPPriceProvider defines the provider for  Token price and TVL.
+// SatLayerLPPriceProvider defines the provider for Token price and TVL.
 type SatLayerLPPriceProvider struct {
 	address     common.Address
 	block       *big.Int
@@ -64,6 +62,12 @@ func (s *SatLayerLPPriceProvider) Initialize(ctx context.Context, client *ethcli
 	var err error
 
 	s.config = &SatLayerConfig{}
+	if s.configBytes == nil || len(s.configBytes) == 0 {
+		err = fmt.Errorf("no configuration data provided for SatLayerLPPriceProvider")
+		s.logger.Error().Msg(err.Error())
+		return err
+	}
+
 	err = json.Unmarshal(s.configBytes, s.config)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("failed to deserialize config")
@@ -122,21 +126,22 @@ func (s *SatLayerLPPriceProvider) GetConfig(ctx context.Context, address string,
 		return nil, err
 	}
 
-	sc := &SatLayerConfig{}
+	slc := &SatLayerConfig{}
 	opts := &bind.CallOpts{
 		Context: ctx,
 	}
 
-	sc.Asset = strings.ToLower(satSolvBTC)
+	// Address is hardcoded because price feed of satSolvBTC.BERA is always 1:1 with SolvBTC
+	slc.Asset = strings.ToLower(solvBTC)
 
 	decimals, err := contract.Decimals(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to fetch decimals, %v", err)
 		return nil, err
 	}
-	sc.LPTDecimals = uint(decimals)
+	slc.LPTDecimals = uint(decimals)
 
-	body, err := json.Marshal(sc)
+	body, err := json.Marshal(slc)
 	if err != nil {
 		return nil, err
 	}

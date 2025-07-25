@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 
@@ -19,18 +20,16 @@ func main() {
 		Timestamp().
 		Logger()
 
+	satSolvBTC := "0xFF21f46Bc9D78125705eEF6EfCA62f9420cfDB9b"
+	solvBTC := "0x541FD749419CA806a8bc7da8ac23D346f2dF8B77"
+
 	// Command-line arguments
-	addressArg := flag.String("address", "0xFF21f46Bc9D78125705eEF6EfCA62f9420cfDB9b", "Smart contract address (Default satSolvBTC.BERA)")
-	price0Arg := flag.String("price0", "0x541FD749419CA806a8bc7da8ac23D346f2dF8B77:118805.23", "address:price of asset, colon delimited (SolvBTC)")
+	addressArg := flag.String("address", satSolvBTC, "Smart contract address (Default satSolvBTC.BERA)")
+	price0Arg := flag.String("price0", fmt.Sprintf("%s:118805.23", solvBTC), "address:price of asset, colon delimited (SolvBTC)")
 	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain Mainnet RPC URL")
 	flag.Parse()
 
-	// Solv adapter can handle SolvBTC.BERA which should be 1:1 with SolvBTC we get from oracles
-
-	// SolvBTC.BERA vault
-	// Solv -address=0x0F6f337B09cb5131cF0ce9df3Beb295b8e728F3B
-	// 		  -price0=0x541FD749419CA806a8bc7da8ac23D346f2dF8B77:118805.23
-	//		  -rpcurl=berchain-rpc-provider
+	// satSolvBTC.BERA is 1:1 with SolvBTC, so we proxy satSolvBTC.BERA price through SolvBTC price
 
 	// Validate required arguments
 	missingArgs := []string{}
@@ -68,7 +67,7 @@ func main() {
 		logger.Fatal().Err(err).Str("rpcurl", *rpcURLArg).Msg("Failed to connect to Ethereum client")
 	}
 
-	cp := protocols.SolvLPPriceProvider{}
+	cp := protocols.SatLayerLPPriceProvider{}
 	configBytes, err := cp.GetConfig(ctx, *addressArg, client)
 	if err != nil {
 		logger.Fatal().Err(err).Str("address", *addressArg).Msg("Failed to get config")
@@ -76,13 +75,13 @@ func main() {
 
 	// Parse the smart contract address
 	address := common.HexToAddress(*addressArg)
-	// Create a new NewSolvLPPriceProvider
-	provider := protocols.NewSolvLPPriceProvider(address, nil, pmap, logger, configBytes)
+	// Create a new NewSatLayerLPPriceProvider
+	provider := protocols.NewSatLayerLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
 	err = provider.Initialize(ctx, client)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to initialize KodiakLPPriceProvider")
+		logger.Fatal().Err(err).Msg("Failed to initialize NewSatLayerLPPriceProvider")
 	}
 
 	// Fetch LP token price
