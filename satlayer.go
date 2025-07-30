@@ -62,7 +62,7 @@ func (s *SatLayerLPPriceProvider) Initialize(ctx context.Context, client *ethcli
 	var err error
 
 	s.config = &SatLayerConfig{}
-	if s.configBytes == nil || len(s.configBytes) == 0 {
+	if len(s.configBytes) == 0 {
 		err = fmt.Errorf("no configuration data provided for SatLayerLPPriceProvider")
 		s.logger.Error().Msg(err.Error())
 		return err
@@ -113,14 +113,11 @@ func (s *SatLayerLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return totalValue.StringFixed(roundingDecimals), nil
 }
 
-func (s *SatLayerLPPriceProvider) GetConfig(ctx context.Context, address string, ethClient *ethclient.Client) ([]byte, error) {
+func (s *SatLayerLPPriceProvider) GetConfig(ctx context.Context, _ string, ethClient *ethclient.Client) ([]byte, error) {
+	// Address is hardcoded to solvBTC because price feed of satSolvBTC.BERA is always 1:1 with SolvBTC
 	var err error
-	if !common.IsHexAddress(address) {
-		err = fmt.Errorf("invalid smart contract address, '%s'", address)
-		return nil, err
-	}
 
-	contract, err := sc.NewSolvBTC(common.HexToAddress(address), ethClient)
+	contract, err := sc.NewSolvBTC(common.HexToAddress(solvBTC), ethClient)
 	if err != nil {
 		err = fmt.Errorf("failed to instantiate Solv smart contract, %v", err)
 		return nil, err
@@ -131,7 +128,6 @@ func (s *SatLayerLPPriceProvider) GetConfig(ctx context.Context, address string,
 		Context: ctx,
 	}
 
-	// Address is hardcoded because price feed of satSolvBTC.BERA is always 1:1 with SolvBTC
 	slc.Asset = strings.ToLower(solvBTC)
 
 	decimals, err := contract.Decimals(opts)
