@@ -12,7 +12,7 @@ all: build
 build: codegen lint
 	rm -f $(BIN_DIR)/aquabera
 	go build -o $(BIN_DIR)/aquabera -v -ldflags \
-		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/aquabera/main.go		
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/aquabera/main.go
 	rm -f $(BIN_DIR)/beraborrow
 	go build -o $(BIN_DIR)/beraborrow -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/beraborrow/main.go
@@ -27,16 +27,16 @@ build: codegen lint
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/bulla/main.go
 	rm -f $(BIN_DIR)/burrbear
 	go build -o $(BIN_DIR)/burrbear -v -ldflags \
-		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/burrbear/main.go	
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/burrbear/main.go
 	rm -f $(BIN_DIR)/concrete
 	go build -o $(BIN_DIR)/concrete -v -ldflags \
-		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/concrete/main.go			
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/concrete/main.go
 	rm -f $(BIN_DIR)/d2
 	go build -o $(BIN_DIR)/d2 -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/d2/main.go
 	rm -f $(BIN_DIR)/d8x
 	go build -o $(BIN_DIR)/d8x -v -ldflags \
-		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/d8x/main.go		
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/d8x/main.go
 	rm -f $(BIN_DIR)/dolomite
 	go build -o $(BIN_DIR)/dolomite -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/dolomite/main.go
@@ -62,7 +62,9 @@ build: codegen lint
 	go build -o $(BIN_DIR)/wasabi -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/wasabi/main.go
 	go build -o $(BIN_DIR)/webera -v -ldflags \
-		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/webera/main.go		
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/webera/main.go
+	go build -o $(BIN_DIR)/satlayer -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/satlayer/main.go
 
 lint:
 	golangci-lint run
@@ -87,14 +89,14 @@ codegen:
 	abigen --abi assets/abis/aquabera.abi --pkg sc --type AquaBera --out internal/sc/aquabera.go
 	abigen --abi assets/abis/d2vault.abi --pkg sc --type D2Vault --out internal/sc/d2_vault.go
 	abigen --abi assets/abis/d8xpoolmanager.abi --pkg sc --type D8xPoolManager --out internal/sc/d8x_pool_manager.go
-	abigen --abi assets/abis/d8xsharetoken.abi --pkg sc --type D8xShareToken --out internal/sc/d8x_share_token.go	
+	abigen --abi assets/abis/d8xsharetoken.abi --pkg sc --type D8xShareToken --out internal/sc/d8x_share_token.go
 	abigen --abi assets/abis/etherfiaccountant.abi --pkg sc --type EtherfiAccountant --out internal/sc/etherfi_accountant.go
 	abigen --abi assets/abis/etherfivault.abi --pkg sc --type EtherfiVault --out internal/sc/etherfi_vault.go
-	abigen --abi assets/abis/eulervault.abi --pkg sc --type EulerVault --out internal/sc/euler_vault.go	
+	abigen --abi assets/abis/eulervault.abi --pkg sc --type EulerVault --out internal/sc/euler_vault.go
 	abigen --abi assets/abis/aggregatorV3.abi --pkg sc --type AggregatorV3 --out internal/sc/aggregatorV3.go
 	abigen --abi assets/abis/kodiakisland.abi --pkg sc --type KodiakIsland --out internal/sc/kodiak_island.go
-	abigen --abi assets/abis/solvbtc.abi --pkg sc --type SolvBTC --out internal/sc/solvbtc.go	
-	abigen --abi assets/abis/steerpool.abi --pkg sc --type SteerPool --out internal/sc/steer_pool.go		
+	abigen --abi assets/abis/solvbtc.abi --pkg sc --type SolvBTC --out internal/sc/solvbtc.go
+	abigen --abi assets/abis/steerpool.abi --pkg sc --type SteerPool --out internal/sc/steer_pool.go
 	abigen --abi assets/abis/uniswapv2pair.abi --pkg sc --type UniswapV2 --out internal/sc/uniswap_v2.go
 	abigen --abi assets/abis/wasabeevault.abi --pkg sc --type WasabeeVault --out internal/sc/wasabee_vault.go
 	abigen --abi assets/abis/weberavault.abi --pkg sc --type WeberaVault --out internal/sc/webera_vault.go
