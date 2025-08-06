@@ -49,6 +49,9 @@ build: codegen lint
 	rm -f $(BIN_DIR)/kodiak
 	go build -o $(BIN_DIR)/kodiak -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/kodiak/main.go
+	rm -f $(BIN_DIR)/pendle
+	go build -o $(BIN_DIR)/pendle -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/pendle/main.go		
 	rm -f $(BIN_DIR)/solvbtc
 	go build -o $(BIN_DIR)/solvbtc -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/solvbtc/main.go
