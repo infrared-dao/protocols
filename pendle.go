@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/infrared-dao/protocols/fetchers"
@@ -12,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 )
 
@@ -50,7 +50,7 @@ func NewPendleLPPriceProvider(
 	logger zerolog.Logger,
 	config []byte,
 ) *PendleLPPriceProvider {
-	endpoint := fmt.Sprintf(pendleV2API, address.Hex())
+	endpoint := fmt.Sprintf(pendleV2API, strings.ToLower(address.Hex()))
 	params := fetchers.HTTPParams{
 		URL: endpoint,
 		Headers: map[string]string{
@@ -135,13 +135,6 @@ type PendlePoolCurrentState struct {
 
 // tvl fetches the TVL from the Pendle smart contract.
 func (p *PendleLPPriceProvider) getSupplyAndTVL(ctx context.Context) (decimal.Decimal, decimal.Decimal, error) {
-	responseJSON, err := fetchers.HTTPGet(ctx, p.params)
-	if err != nil {
-		err = fmt.Errorf("failed to fetch current Pendle Pool state data, %w", err)
-		log.Error().Msg(err.Error())
-		return decimal.Zero, decimal.Zero, err
-	}
-
 	var results PendlePoolCurrentState
 
 	now := time.Now()
@@ -152,6 +145,13 @@ func (p *PendleLPPriceProvider) getSupplyAndTVL(ctx context.Context) (decimal.De
 		results = p.cacheResult
 		p.logger.Debug().Msg("Getting value from cache because last call was recent")
 	} else {
+		responseJSON, err := fetchers.HTTPGet(ctx, p.params)
+		if err != nil {
+			err = fmt.Errorf("failed to fetch current Pendle Pool state data, %w", err)
+			p.logger.Error().Err(err).Msg("Unable to HTTP get the API endpoint")
+			return decimal.Zero, decimal.Zero, err
+		}
+
 		err = json.Unmarshal(responseJSON, &results)
 		if err != nil {
 			return decimal.Zero, decimal.Zero, err
