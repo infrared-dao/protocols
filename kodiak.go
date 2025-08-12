@@ -19,14 +19,16 @@ import (
 )
 
 const (
-	V2PoolByteCodeSHA256   = "bffda5c9e111fa411890cc93d58cb5c58a14f97bcbfa642efe300c766c4397f6"
-	V3IslandByteCodeSHA256 = "f1b68b8044f372c1831075be05a63c1757ef9c64cabd5dfbf9a749a93f25b1da"
+	V2PoolByteCodeSHA256    = "bffda5c9e111fa411890cc93d58cb5c58a14f97bcbfa642efe300c766c4397f6"
+	V3IslandByteCodeSHA256  = "f1b68b8044f372c1831075be05a63c1757ef9c64cabd5dfbf9a749a93f25b1da"
+	CharmPoolByteCodeSHA256 = "b8de812c5ad434d1d101b9dfb46de284637741a9b36b25e856fe1eca8a1388e0"
 )
 
 // enforce interface adherence
 var _ Protocol = &KodiakLPPriceProvider{}
 var _ KodiakContract = &KodiakV3Island{}
 var _ KodiakContract = &KodiakV2Pool{}
+var _ KodiakContract = &KodiakCharmPool{}
 
 type Balances struct {
 	Amount0 *big.Int
@@ -39,6 +41,9 @@ type KodiakV3Island struct {
 }
 type KodiakV2Pool struct {
 	*sc.UniswapV2
+}
+type KodiakCharmPool struct {
+	*sc.AlphaProVault
 }
 
 type KodiakContract interface {
@@ -70,6 +75,17 @@ func (v2 *KodiakV2Pool) GetBalances(opts *bind.CallOpts) (Balances, error) {
 	return Balances{
 		Amount0: balances.Reserve0,
 		Amount1: balances.Reserve1,
+	}, nil
+}
+
+func (kc *KodiakCharmPool) GetBalances(opts *bind.CallOpts) (Balances, error) {
+	balances, err := kc.GetTotalAmounts0(opts)
+	if err != nil {
+		return Balances{}, err
+	}
+	return Balances{
+		Amount0: balances.Total0,
+		Amount1: balances.Total1,
 	}, nil
 }
 
@@ -339,6 +355,13 @@ func newKodiakContract(
 			return nil, err
 		}
 		return &KodiakV3Island{island}, nil
+	case CharmPoolByteCodeSHA256:
+		// initialize contract as a Kodiak x Charm Pool (concentrated liquidity)
+		pool, err := sc.NewAlphaProVault(address, client)
+		if err != nil {
+			return nil, err
+		}
+		return &KodiakCharmPool{pool}, nil
 	default:
 		// Error for yet unknown contract type being attempted
 		return nil, errors.New("contract unrecognized: neither V2 Pool or V3 Island")

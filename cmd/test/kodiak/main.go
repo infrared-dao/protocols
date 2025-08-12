@@ -44,6 +44,12 @@ func main() {
 	// 			-price1=0x6969696969696969696969696969696969696969:8.66
 	//			-rpcurl=berchain-rpc-provider
 
+	// CHRM WBERA-USDC Kodiak Charm Pool (concentrated liquidity)
+	// kodiak -address=0x38920562047280f2f95b7aba7a9eaa8d0ae04a5c
+	// 			-price0=0x549943e04f40284185054145c6E4e9568C1D3241:1.002  // NOTE: Decimals = 6
+	// 			-price1=0x6969696969696969696969696969696969696969:1.93
+	//			-rpcurl=berchain-rpc-provider
+
 	// Validate required arguments
 	missingArgs := []string{}
 	if *addressArg == "" {
