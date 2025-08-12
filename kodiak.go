@@ -356,7 +356,7 @@ func newKodiakContract(
 		}
 		return &KodiakV3Island{island}, nil
 	case CharmPoolByteCodeSHA256:
-		// initialize contract as a Kodiak V3 Island
+		// initialize contract as a Kodiak x Charm Pool (concentrated liquidity)
 		pool, err := sc.NewAlphaProVault(address, client)
 		if err != nil {
 			return nil, err
