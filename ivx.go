@@ -11,20 +11,18 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
-	"github.com/shopspring/decimal"
 )
-
-const PriceDecimals uint = 18
 
 var _ Protocol = &IVXLPPriceProvider{}
 
 type IVXLPConfig struct {
+	LPTDecimals uint `json:"lpt_decimals"`
 }
 
 // IVXLPPriceProvider defines the provider for IVXLP price and TVL.
 type IVXLPPriceProvider struct {
-	lpTokenAddress    common.Address
 	lpMonitorAddress  common.Address
+	lpTokenAddress    common.Address
 	block             *big.Int
 	logger            zerolog.Logger
 	configBytes       []byte
@@ -34,15 +32,15 @@ type IVXLPPriceProvider struct {
 
 // NewIVXLPPriceProvider creates a new instance of the IVXLPPriceProvider.
 func NewIVXLPPriceProvider(
-	lpTokenAddress common.Address,
 	lpMonitorAddress common.Address,
+	lpTokenAddress common.Address,
 	block *big.Int,
 	logger zerolog.Logger,
 	config []byte,
 ) *IVXLPPriceProvider {
 	return &IVXLPPriceProvider{
-		lpTokenAddress:   lpTokenAddress,
 		lpMonitorAddress: lpMonitorAddress,
+		lpTokenAddress:   lpTokenAddress,
 		block:            block,
 		logger:           logger,
 		configBytes:      config,
@@ -83,8 +81,7 @@ func (p *IVXLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to get IVXLP share price, err: %w", err)
 	}
 
-	sharePriceDecimal := decimal.NewFromBigInt(sharePrice, 0)
-	pricePerToken := sharePriceDecimal.Div(decimal.New(1, int32(PriceDecimals)))
+	pricePerToken := NormalizeAmount(sharePrice, p.config.LPTDecimals)
 
 	p.logger.Debug().
 		Str("Token Price", pricePerToken.String()).
@@ -106,15 +103,13 @@ func (p *IVXLPPriceProvider) TVL(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to get TVL from IVXLPMonitor, err: %w", err)
 	}
 
-	tvlDecimal := decimal.NewFromBigInt(tvl, 0)
-	priceInUSD := tvlDecimal.Div(decimal.New(1, int32(PriceDecimals)))
+	tvlInUSD := NormalizeAmount(tvl, p.config.LPTDecimals)
 
 	p.logger.Debug().
-		Str("TVL without decimals", tvl.String()).
-		Str("Price In USD", priceInUSD.String()).
+		Str("TVL In USD", tvlInUSD.String()).
 		Msg("TVL fetched successfully")
 
-	return priceInUSD.StringFixed(roundingDecimals), nil
+	return tvlInUSD.StringFixed(roundingDecimals), nil
 }
 
 // GetConfig returns the configuration for the IVXLP pool.
@@ -123,8 +118,24 @@ func (p *IVXLPPriceProvider) GetConfig(ctx context.Context, address string, clie
 		return nil, fmt.Errorf("invalid smart contract address, '%s'", address)
 	}
 
+	erc20Contract, err := sc.NewERC20Caller(common.HexToAddress(address), client)
+	if err != nil {
+		p.logger.Error().Err(err).Msg("failed to instantiate ERC20 contract on IVX LP Token")
+		return nil, err
+	}
+
 	// Construct the configuration object
 	config := IVXLPConfig{}
+	opts := &bind.CallOpts{
+		Context: ctx,
+	}
+
+	decimals, err := erc20Contract.Decimals(opts)
+	if err != nil {
+		p.logger.Error().Err(err).Msg("failed to get ERC20 decimals from IVX LP Token")
+		return nil, err
+	}
+	config.LPTDecimals = uint(decimals)
 
 	// Marshal the configuration into JSON
 	body, err := json.Marshal(config)

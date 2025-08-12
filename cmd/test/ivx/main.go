@@ -56,7 +56,7 @@ func main() {
 	}
 
 	// Create a new IVXLPPriceProvider
-	provider := protocols.NewIVXLPPriceProvider(lpTokenAddress, lpMonitorAddress, nil, logger, configBytes)
+	provider := protocols.NewIVXLPPriceProvider(lpMonitorAddress, lpTokenAddress, nil, logger, configBytes)
 
 	// Initialize the provider
 	err = provider.Initialize(ctx, client)
