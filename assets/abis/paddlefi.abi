@@ -1,0 +1,36 @@
+[{
+    "inputs": [
+      {
+        "internalType": "contract CToken[]",
+        "name": "cTokens",
+        "type": "address[]"
+      }
+    ],
+    "name": "cTokenUnderlyingPriceAll",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "cToken",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "underlyingPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "underlyingNFTPrice",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct CompoundLens.CTokenUnderlyingPrice[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }]
