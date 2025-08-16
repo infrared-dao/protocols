@@ -106,6 +106,7 @@ codegen:
 	abigen --abi assets/abis/kodiakisland.abi --pkg sc --type KodiakIsland --out internal/sc/kodiak_island.go
 	abigen --abi assets/abis/alphaprovault.abi --pkg sc --type AlphaProVault --out internal/sc/alpha_pro_vault.go	
 	abigen --abi assets/abis/paddlefi.abi --pkg sc --type Paddlefi --out internal/sc/paddlefi.go
+	abigen --abi assets/abis/pendlelpwrapper.abi --pkg sc --type PendleWrapper --out internal/sc/pendle_wrapper.go	
 	abigen --abi assets/abis/solvbtc.abi --pkg sc --type SolvBTC --out internal/sc/solvbtc.go	
 	abigen --abi assets/abis/steerpool.abi --pkg sc --type SteerPool --out internal/sc/steer_pool.go		
 	abigen --abi assets/abis/wasabeevault.abi --pkg sc --type WasabeeVault --out internal/sc/wasabee_vault.go

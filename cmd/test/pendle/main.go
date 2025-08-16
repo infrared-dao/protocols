@@ -19,12 +19,12 @@ func main() {
 		Logger()
 
 	// Command-line arguments
-	lpTokenArg := flag.String("address", "0x02293d88656860a840ed457d38f51e3e6bee8461", "Wrapped LP Token address, ie. pendle pool address")
+	lpTokenArg := flag.String("address", "0xc2605ed80880bd6b1523d52aef8d624ed468a935", "Wrapped LP Token address, ie. pendle pool address")
 	rpcURLArg := flag.String("rpcurl", "https://  berachain-rpc-url", "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// Pendle iBGT pool
-	// pendle -address=0x02293d88656860a840ed457d38f51e3e6bee8461
+	// pendle -address=0xc2605ed80880bd6b1523d52aef8d624ed468a935
 	//        -rpcurl=berachain-rpc-provider
 
 	// Validate required arguments

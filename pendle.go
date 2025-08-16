@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/infrared-dao/protocols/fetchers"
+	"github.com/infrared-dao/protocols/internal/sc"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
@@ -33,12 +35,16 @@ const (
 
 var _ Protocol = &PendleLPPriceProvider{}
 
-type PendleConfig struct{}
+type PendleConfig struct {
+	PoolAddress string `json:"pool_address"`
+}
 
 // PendleLPPriceProvider defines the provider for Pendle wrapped LP price and TVL.
 type PendleLPPriceProvider struct {
 	address     common.Address
 	logger      zerolog.Logger
+	configBytes []byte
+	config      *PendleConfig
 	params      fetchers.HTTPParams
 	cacheResult PendlePoolCurrentState
 	cacheTime   time.Time
@@ -50,7 +56,22 @@ func NewPendleLPPriceProvider(
 	logger zerolog.Logger,
 	config []byte,
 ) *PendleLPPriceProvider {
-	endpoint := fmt.Sprintf(pendleV2API, strings.ToLower(address.Hex()))
+	p := &PendleLPPriceProvider{
+		address:     address,
+		logger:      logger,
+		configBytes: config,
+	}
+	return p
+}
+
+// Initialize creates the web client used to make API calls
+func (p *PendleLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+	p.config = &PendleConfig{}
+	if err := json.Unmarshal(p.configBytes, p.config); err != nil {
+		return fmt.Errorf("config unmarshal failed: %w", err)
+	}
+
+	endpoint := fmt.Sprintf(pendleV2API, strings.ToLower(p.config.PoolAddress))
 	params := fetchers.HTTPParams{
 		URL: endpoint,
 		Headers: map[string]string{
@@ -59,17 +80,8 @@ func NewPendleLPPriceProvider(
 		},
 		MaxWait: fetchers.DefaultRequestTimeout,
 	}
+	p.params = params
 
-	p := &PendleLPPriceProvider{
-		address: address,
-		logger:  logger,
-		params:  params,
-	}
-	return p
-}
-
-// Initialize creates the web client used to make API calls
-func (p *PendleLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
 	return nil
 }
 
@@ -106,14 +118,31 @@ func (p *PendleLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return tvl.StringFixed(roundingDecimals), nil
 }
 
-func (p *PendleLPPriceProvider) GetConfig(ctx context.Context, address string, ethClient *ethclient.Client) ([]byte, error) {
+func (p *PendleLPPriceProvider) GetConfig(ctx context.Context, address string, client *ethclient.Client) ([]byte, error) {
 	var err error
 	if !common.IsHexAddress(address) {
 		err = fmt.Errorf("invalid smart contract address, '%s'", address)
 		return nil, err
 	}
 
+	contract, err := sc.NewPendleWrapper(common.HexToAddress(address), client)
+	if err != nil {
+		p.logger.Error().Err(err).Msg("failed to instantiate Balancer Base Pool contract on LP Token")
+		return nil, err
+	}
+
 	pc := &PendleConfig{}
+	opts := &bind.CallOpts{
+		Context: ctx,
+	}
+
+	poolAddress, err := contract.PendleWrapperCaller.LP(opts)
+	if err != nil {
+		err = fmt.Errorf("failed to obtain poolAddress of LP from wrapped contract %s, %v", poolAddress, err)
+		return nil, err
+	}
+	pc.PoolAddress = poolAddress.Hex()
+
 	body, err := json.Marshal(pc)
 	if err != nil {
 		return nil, err
