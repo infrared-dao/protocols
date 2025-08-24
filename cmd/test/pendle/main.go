@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -83,4 +84,16 @@ func main() {
 			Str("TVL (USD)", tvl).
 			Msg("successfully fetched TVL")
 	}
+
+	// Test fetcher using Pendle API for base APRs
+	pools := []string{
+		"0x02293d88656860a840ed457d38f51e3e6bee8461",
+		"0x5200c9900436f649b4659dfc79213837dcccaab1",
+	}
+	pendleAPRs, err := fetchers.FetchPendleAPRs(ctx, pools)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("bad response from pendle API")
+	}
+	logger.Info().
+		Msgf("fetched pendle base APRs from API %+v", pendleAPRs)
 }
