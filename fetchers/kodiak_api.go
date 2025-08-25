@@ -97,13 +97,13 @@ func FetchKodiakAPRs(ctx context.Context, stakingTokens []string) (map[string]de
 					}
 				}
 
-				// Use totalApr which includes both base APR and farm rewards
-				totalAPR := decimal.NewFromFloat(vault.TotalApr)
+				// Use apr which is the base APR from swap fees (excluding staking rewards)
+				baseAPR := decimal.NewFromFloat(vault.Apr)
 
 				// Kodiak REST API returns APR as percentages (e.g., 15.5 for 15.5%), so divide by 100
-				totalAPR = totalAPR.Div(scalePercent)
+				baseAPR = baseAPR.Div(scalePercent)
 
-				kodiakAPRs[vaultID] = totalAPR
+				kodiakAPRs[vaultID] = baseAPR
 				break
 			}
 		}
