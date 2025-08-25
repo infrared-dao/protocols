@@ -1,11 +1,10 @@
 package fetchers
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
+	"net/url"
 	"strings"
 	"time"
 
@@ -14,21 +13,24 @@ import (
 )
 
 const (
-	kodiakAPI    = "https://api.goldsky.com/api/public/project_clpx84oel0al201r78jsl0r3i/subgraphs/kodiak-v3-berachain-mainnet/latest/gn"
-	kodiakQuery  = `{ kodiakAprs(where: {id_in: [\"%s\"]}) { id, averageApr, timestamp } }`
-	ageThreshold = 14400 // 4 hours, averageAPR observations older than this will be ignored
+	kodiakAPIBase        = "https://backend.kodiak.finance"
+	kodiakVaultsEndpoint = "/vaults"
+	kodiakChainID        = "80094" // Berachain mainnet
+	kodiakAgeThreshold   = 14400   // 4 hours, APR observations older than this will be ignored
 )
 
-type kodiakAPR struct {
-	ID        string `json:"id"`
-	APR       string `json:"averageApr"`
-	Timestamp string `json:"timestamp"`
+type kodiakVault struct {
+	ID          string  `json:"id"`
+	TotalApr    float64 `json:"totalApr"`
+	Apr         float64 `json:"apr"`
+	TVL         float64 `json:"tvl"`
+	LastUpdated string  `json:"lastUpdated"`
+	LastIndexed string  `json:"lastIndexed"`
 }
 
-type kodiakResponse struct {
-	Data struct {
-		APRs []kodiakAPR `json:"kodiakAprs"`
-	} `json:"data"`
+type kodiakVaultsResponse struct {
+	Data  []kodiakVault `json:"data"`
+	Count int           `json:"count"`
 }
 
 func FetchKodiakAPRs(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
@@ -36,57 +38,74 @@ func FetchKodiakAPRs(ctx context.Context, stakingTokens []string) (map[string]de
 		return nil, nil
 	}
 
+	// Normalize token addresses to lowercase
+	normalizedTokens := make([]string, len(stakingTokens))
 	for idx, tokenAddress := range stakingTokens {
-		stakingTokens[idx] = strings.ToLower(tokenAddress)
+		normalizedTokens[idx] = strings.ToLower(tokenAddress)
 	}
-	tokensFilter := strings.Join(stakingTokens, `\", \"`)
-	query := fmt.Sprintf(kodiakQuery, tokensFilter)
-	jsonQuery := []byte(`{"query": "` + query + `"}`)
 
-	params := HTTPParams{
-		URL: kodiakAPI,
+	// Build the API URL
+	apiURL := kodiakAPIBase + kodiakVaultsEndpoint
+	params := url.Values{}
+	params.Add("chainId", kodiakChainID)
+	params.Add("limit", "1000") // Get more vaults to ensure we find matches
+
+	fullURL := fmt.Sprintf("%s?%s", apiURL, params.Encode())
+
+	httpParams := HTTPParams{
+		URL: fullURL,
 		Headers: map[string]string{
-			"Content-Type": "application/json; charset=UTF-8",
-			"Accept":       "application/json",
+			"Accept": "application/json",
 		},
-		RequestBody: bytes.NewBuffer(jsonQuery).Bytes(),
-		MaxWait:     DefaultRequestTimeout,
+		MaxWait: DefaultRequestTimeout,
 	}
 
-	responseJSON, err := HTTPPost(ctx, params)
+	responseJSON, err := HTTPGet(ctx, httpParams)
 	if err != nil {
-		err = fmt.Errorf("failed to fetch kodiak APR data, %w", err)
+		err = fmt.Errorf("failed to fetch kodiak vault data, %w", err)
 		log.Error().Msg(err.Error())
 		return nil, err
 	}
 
-	var results kodiakResponse
+	var results kodiakVaultsResponse
 	err = json.Unmarshal(responseJSON, &results)
 	if err != nil {
 		return nil, err
 	}
 
 	scalePercent := decimal.NewFromFloat(100.0)
-
 	kodiakAPRs := make(map[string]decimal.Decimal)
-	for _, aprData := range results.Data.APRs {
-		avgAPR, err := decimal.NewFromString(aprData.APR)
-		if err != nil {
-			continue // don't error if there are other results we could process
-		}
 
-		// Kodiak API returns literal percents but we divide by 100 for consistency
-		avgAPR = avgAPR.Div(scalePercent)
+	// Process vaults and match against requested tokens
+	for _, vault := range results.Data {
+		vaultID := strings.ToLower(vault.ID)
 
-		unixTimeInt, err := strconv.ParseInt(aprData.Timestamp, 10, 64)
-		if err != nil {
-			continue // don't error if there are other results we could process
-		}
-		dataTime := time.Unix(unixTimeInt, 0)
-		now := time.Now()
-		age := now.Sub(dataTime).Seconds()
-		if age < ageThreshold {
-			kodiakAPRs[aprData.ID] = avgAPR
+		// Check if this vault ID matches any of our requested tokens
+		for _, requestedToken := range normalizedTokens {
+			if vaultID == requestedToken {
+				// Check if the data is recent enough
+				if vault.LastUpdated != "" {
+					updatedTime, err := time.Parse(time.RFC3339, vault.LastUpdated)
+					if err != nil {
+						continue
+					}
+
+					now := time.Now()
+					age := now.Sub(updatedTime).Seconds()
+					if age >= kodiakAgeThreshold {
+						continue
+					}
+				}
+
+				// Use apr which is the base APR from swap fees (excluding staking rewards)
+				baseAPR := decimal.NewFromFloat(vault.Apr)
+
+				// Kodiak REST API returns APR as percentages (e.g., 15.5 for 15.5%), so divide by 100
+				baseAPR = baseAPR.Div(scalePercent)
+
+				kodiakAPRs[vaultID] = baseAPR
+				break
+			}
 		}
 	}
 

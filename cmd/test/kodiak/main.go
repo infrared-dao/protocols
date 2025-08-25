@@ -151,6 +151,8 @@ func main() {
 		"0x8b161685135e9fbc5475169e1addc0f2c4b7c343",
 		"0xec8ba456b4e009408d0776cde8b91f8717d13fa1",
 		"0xdca120bd3a13250b67f6faa5c29c1f38ec6ebece",
+		"0xc60ea9801b3f1b01da373c05381e6ce8ff94d76f",
+		"0x38920562047280f2f95b7aba7a9eaa8d0ae04a5c",
 	}
 	kodiakAPRs, err := fetchers.FetchKodiakAPRs(ctx, stakingTokens)
 	if err != nil {
