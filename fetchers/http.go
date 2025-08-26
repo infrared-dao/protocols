@@ -12,22 +12,21 @@ import (
 )
 
 type HTTPParams struct {
-	URL         string
-	RequestBody []byte
-	MaxWait     time.Duration
-	Headers     map[string]string
+	URL            string
+	RequestBody    []byte
+	RequestTimeout time.Duration
+	Headers        map[string]string
 }
 
 const (
-	MaxWaitInSeconds      = 10
-	DefaultRequestTimeout = 3 * time.Second
+	DefaultRequestTimeout = 12 * time.Second
 )
 
 func timeout(params HTTPParams) time.Duration {
-	if params.MaxWait.Milliseconds() <= 0 {
-		return time.Duration(MaxWaitInSeconds) * time.Second
+	if params.RequestTimeout <= 0 {
+		return DefaultRequestTimeout
 	}
-	return params.MaxWait
+	return params.RequestTimeout
 }
 
 func HTTPGet(ctx context.Context, params HTTPParams) ([]byte, error) {

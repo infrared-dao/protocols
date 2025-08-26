@@ -41,7 +41,6 @@ func FetchDolomiteAPRs(ctx context.Context, underlyingTokens []string) (map[stri
 		Headers: map[string]string{
 			"Accept": "application/json",
 		},
-		MaxWait: DefaultRequestTimeout,
 	}
 
 	responseJSON, err := HTTPGet(ctx, params)

@@ -42,7 +42,6 @@ func FetchPendleAPRs(ctx context.Context, pools []string) (map[string]decimal.De
 				"Content-Type": "application/json; charset=UTF-8",
 				"Accept":       "application/json",
 			},
-			MaxWait: DefaultRequestTimeout,
 		}
 
 		responseJSON, err := HTTPGet(ctx, params)

@@ -56,7 +56,6 @@ func FetchBexAPRs(ctx context.Context, stakingTokens []string) (map[string]decim
 			"Accept":       "application/json",
 		},
 		RequestBody: bytes.NewBuffer(jsonQuery).Bytes(),
-		MaxWait:     DefaultRequestTimeout,
 	}
 
 	responseJSON, err := HTTPPost(ctx, params)
