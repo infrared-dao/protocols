@@ -57,7 +57,6 @@ func FetchKodiakAPRs(ctx context.Context, stakingTokens []string) (map[string]de
 		Headers: map[string]string{
 			"Accept": "application/json",
 		},
-		MaxWait: DefaultRequestTimeout,
 	}
 
 	responseJSON, err := HTTPGet(ctx, httpParams)
