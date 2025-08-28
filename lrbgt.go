@@ -3,7 +3,6 @@ package protocols
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -16,35 +15,44 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-var _ Protocol = &AquaBeraLPPriceProvider{}
+var _ Protocol = &LrBGTLPPriceProvider{}
 
-type AquaBeraConfig struct {
+type LrBGTConfig struct {
 	Token0      string `json:"token0"`
 	Token1      string `json:"token1"`
+	Token2      string `json:"token2"`
 	LPTDecimals uint   `json:"lpt_decimals"`
 }
 
-// AquaBeraLPPriceProvider defines the provider for AquaBera LP price and TVL.
-type AquaBeraLPPriceProvider struct {
-	address     common.Address
-	block       *big.Int
-	priceMap    map[string]Price
-	logger      zerolog.Logger
-	configBytes []byte
-	config      *AquaBeraConfig
-	contract    *sc.AquaBera
+// LrBGTLPPriceProvider defines the provider for LrBGT LP price and TVL.
+type LrBGTLPPriceProvider struct {
+	address            common.Address
+	address2           common.Address
+	address3           common.Address
+	block              *big.Int
+	priceMap           map[string]Price
+	logger             zerolog.Logger
+	configBytes        []byte
+	config             *LrBGTConfig
+	lrBGT              *sc.LrBGT
+	lrBGTManager       *sc.LrBGTManager
+	lrBGTManagerHelper *sc.LrBGTManagerHelper
 }
 
-// NewAquaBeraLPPriceProvider creates a new instance of the AquaBeraLPPriceProvider.
-func NewAquaBeraLPPriceProvider(
+// NewLrBGTLPPriceProvider creates a new instance of the NewLrBGTLPPriceProvider.
+func NewLrBGTLPPriceProvider(
 	address common.Address,
+	address2 common.Address,
+	address3 common.Address,
 	block *big.Int,
 	prices map[string]Price,
 	logger zerolog.Logger,
 	config []byte,
-) *AquaBeraLPPriceProvider {
-	a := &AquaBeraLPPriceProvider{
+) *LrBGTLPPriceProvider {
+	a := &LrBGTLPPriceProvider{
 		address:     address,
+		address2:    address2,
+		address3:    address3,
 		block:       block,
 		priceMap:    prices,
 		logger:      logger,
@@ -53,22 +61,25 @@ func NewAquaBeraLPPriceProvider(
 	return a
 }
 
-// Initialize checks the configuration/data provided and instantiates the AquaBera smart contract.
-func (a *AquaBeraLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+// Initialize checks the configuration/data provided and instantiates the LrBGT smart contract.
+func (a *LrBGTLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
 	var err error
 
-	a.config = &AquaBeraConfig{}
+	a.config = &LrBGTConfig{}
 	err = json.Unmarshal(a.configBytes, a.config)
 	if err != nil {
 		a.logger.Error().Err(err).Msg("failed to deserialize config")
 		return err
 	}
+
+	// Validate that we have price data for the tokens
 	_, ok := a.priceMap[a.config.Token0]
 	if !ok {
 		err = fmt.Errorf("no price data found for token0 (%s)", a.config.Token0)
 		a.logger.Error().Msg(err.Error())
 		return err
 	}
+
 	_, ok = a.priceMap[a.config.Token1]
 	if !ok {
 		err = fmt.Errorf("no price data found for token1 (%s)", a.config.Token1)
@@ -76,26 +87,39 @@ func (a *AquaBeraLPPriceProvider) Initialize(ctx context.Context, client *ethcli
 		return err
 	}
 
-	a.contract, err = sc.NewAquaBera(a.address, client)
-	if err != nil {
-		a.logger.Error().Err(err).Msg("failed to instantiate AquaBera smart contract")
+	_, ok = a.priceMap[a.config.Token2]
+	if !ok {
+		err = fmt.Errorf("no price data found for token2 (%s)", a.config.Token2)
+		a.logger.Error().Msg(err.Error())
 		return err
 	}
+
+	a.lrBGT, err = sc.NewLrBGT(a.address, client)
+	if err != nil {
+		a.logger.Error().Err(err).Msg("failed to instantiate LrBGT smart contract")
+		return err
+	}
+
+	a.lrBGTManager, err = sc.NewLrBGTManager(a.address2, client)
+	if err != nil {
+		a.logger.Error().Err(err).Msg("failed to instantiate LrBGTManager smart contract")
+		return err
+	}
+
+	a.lrBGTManagerHelper, err = sc.NewLrBGTManagerHelper(a.address3, client)
+	if err != nil {
+		a.logger.Error().Err(err).Msg("failed to instantiate LrBGTManagerHelper smart contract")
+		return err
+	}
+
 	return nil
 }
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD.
-func (a *AquaBeraLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
+func (a *LrBGTLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	// Fetch total supply
 	totalSupply, err := a.getTotalSupply(ctx)
 	if err != nil {
-		return "", err
-	}
-
-	// Avoid division by zero
-	if totalSupply.Sign() == 0 {
-		err := errors.New("totalSupply is zero, cannot calculate LP token price")
-		a.logger.Error().Err(err).Msg("Invalid totalSupply")
 		return "", err
 	}
 
@@ -117,7 +141,7 @@ func (a *AquaBeraLPPriceProvider) LPTokenPrice(ctx context.Context) (string, err
 }
 
 // TVL returns the Total Value Locked in the protocol in USD.
-func (a *AquaBeraLPPriceProvider) TVL(ctx context.Context) (string, error) {
+func (a *LrBGTLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	totalValue, err := a.totalValue(ctx)
 	if err != nil {
 		return "", err
@@ -130,42 +154,47 @@ func (a *AquaBeraLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return totalValue.StringFixed(roundingDecimals), nil
 }
 
-// GetConfig fetches and returns the configuration for the AquaBera protocol.
-func (a *AquaBeraLPPriceProvider) GetConfig(ctx context.Context, address string, client *ethclient.Client) ([]byte, error) {
+// GetConfig fetches and returns the configuration for the LrBGT protocol.
+func (a *LrBGTLPPriceProvider) GetConfig(ctx context.Context, address string, client *ethclient.Client) ([]byte, error) {
 	var err error
 	if !common.IsHexAddress(address) {
 		err = fmt.Errorf("invalid smart contract address, '%s'", address)
 		return nil, err
 	}
-	contract, err := sc.NewAquaBera(common.HexToAddress(address), client)
+
+	lrBGTManager, err := sc.NewLrBGTManager(common.HexToAddress(address), client)
 	if err != nil {
-		err = fmt.Errorf("failed to instantiate AquaBera smart contract, %v", err)
+		err = fmt.Errorf("failed to instantiate lrBGTManager smart contract, %v", err)
 		return nil, err
 	}
 
-	ac := AquaBeraConfig{}
+	ac := LrBGTConfig{}
 	opts := &bind.CallOpts{
 		Context: ctx,
 	}
 
-	// token0
-	addr, err := contract.Token0(opts)
-	if err != nil {
-		err = fmt.Errorf("failed to obtain token0 address for aquabera vault %s, %v", address, err)
-		return nil, err
-	}
-	ac.Token0 = strings.ToLower(addr.Hex())
+	lrBGTAddress, err := lrBGTManager.LairBgtTokenAddress(opts)
 
-	// token1
-	addr, err = contract.Token1(opts)
+	lrBGT, err := sc.NewLrBGT(common.HexToAddress(lrBGTAddress.String()), client)
+
+	bgtTokenAddress, err := lrBGTManager.BgtTokenAddress(opts)
 	if err != nil {
-		err = fmt.Errorf("failed to obtain token1 address for aquabera vault %s, %v", address, err)
+		err = fmt.Errorf("failed to obtain bgtTokenAddress %v", err)
 		return nil, err
 	}
-	ac.Token1 = strings.ToLower(addr.Hex())
+
+	vaultInfo, err := lrBGTManager.VaultInfo(opts)
+	if err != nil {
+		err = fmt.Errorf("failed to obtain vaultInfo %v", err)
+		return nil, err
+	}
+
+	ac.Token0 = strings.ToLower(bgtTokenAddress.Hex())
+	ac.Token1 = strings.ToLower(vaultInfo.Token0Address.Hex())
+	ac.Token2 = strings.ToLower(vaultInfo.Token1Address.Hex())
 
 	// decimals
-	decimals, err := contract.Decimals(opts)
+	decimals, err := lrBGT.Decimals(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to obtain number of decimals for LP token %s, %v", address, err)
 		return nil, err
@@ -180,7 +209,7 @@ func (a *AquaBeraLPPriceProvider) GetConfig(ctx context.Context, address string,
 	return body, nil
 }
 
-func (a *AquaBeraLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
+func (a *LrBGTLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
 	a.block = block
 	if prices != nil {
 		a.priceMap = prices
@@ -190,11 +219,20 @@ func (a *AquaBeraLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]
 // Internal Helper methods not able to be called except in this file
 
 // Helper method to calculate the total value of underlying assets
-func (a *AquaBeraLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
+func (a *LrBGTLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
 	var err error
 
-	// Fetch underlying balances
-	amount0, amount1, err := a.getUnderlyingBalances(ctx)
+	totalSupply, err := a.getTotalSupply(ctx)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	bgtAmount, lpAmount, err := a.PredictedUnStakeAmount(ctx, totalSupply)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	token0amount, token1Amount, err := a.lpPairTokenAmount(ctx, lpAmount)
 	if err != nil {
 		return decimal.Zero, err
 	}
@@ -203,18 +241,25 @@ func (a *AquaBeraLPPriceProvider) totalValue(ctx context.Context) (decimal.Decim
 	if err != nil {
 		return decimal.Zero, err
 	}
-	amount0Decimal := NormalizeAmount(amount0, price0.Decimals)
+	amount0Decimal := NormalizeAmount(bgtAmount, price0.Decimals)
 
 	price1, err := a.getPrice(a.config.Token1)
 	if err != nil {
 		return decimal.Zero, err
 	}
-	amount1Decimal := NormalizeAmount(amount1, price1.Decimals)
-	totalValue := amount0Decimal.Mul(price0.Price).Add(amount1Decimal.Mul(price1.Price))
+	amount1Decimal := NormalizeAmount(token0amount, price1.Decimals)
+
+	price2, err := a.getPrice(a.config.Token2)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	amount2Decimal := NormalizeAmount(token1Amount, price1.Decimals)
+
+	totalValue := amount0Decimal.Mul(price0.Price).Add(amount1Decimal.Mul(price1.Price)).Add(amount2Decimal.Mul(price2.Price))
 	return totalValue, nil
 }
 
-func (a *AquaBeraLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
+func (a *LrBGTLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 	price, ok := a.priceMap[tokenKey]
 	if !ok {
 		err := fmt.Errorf("no price data found for token (%s)", tokenKey)
@@ -225,30 +270,92 @@ func (a *AquaBeraLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 }
 
 // getTotalSupply fetches the total supply of the LP token.
-func (a *AquaBeraLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
+func (a *LrBGTLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
 		Context:     ctx,
 		BlockNumber: a.block,
 	}
-	ts, err := a.contract.TotalSupply(opts)
+	ts, err := a.lrBGT.TotalSupply(opts)
 	if err != nil {
-		a.logger.Error().Msgf("failed to obtain total supply for aquabera vault %s, %v", a.address.String(), err)
-		return nil, fmt.Errorf("failed to get aquabera total supply, err: %w", err)
+		a.logger.Error().Msgf("failed to obtain total supply for LairBGT %s, %v", a.address.String(), err)
+		return nil, fmt.Errorf("failed to get LairBGT total supply, err: %w", err)
 	}
 
 	return ts, err
 }
 
-// getUnderlyingBalances fetches the underlying token balances.
-func (a *AquaBeraLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, *big.Int, error) {
+// PredictedUnStakeAmount fetches the token balances.
+func (a *LrBGTLPPriceProvider) PredictedUnStakeAmount(ctx context.Context, amount *big.Int) (*big.Int, *big.Int, error) {
 	opts := &bind.CallOpts{
 		Context:     ctx,
 		BlockNumber: a.block,
 	}
-	ubs, err := a.contract.GetTotalAmounts(opts)
+
+	lairBGTTokenAddress, err := a.lrBGTManager.LairBgtTokenAddress(opts)
 	if err != nil {
-		a.logger.Error().Msgf("failed to obtain underlying balances for aquabera vault %s, %v", a.address.String(), err)
-		return nil, nil, fmt.Errorf("failed to get aquabera underlying balances, err: %w", err)
+		a.logger.Error().Msgf("failed to obtain lairBGTTokenAddress %v", err)
+		return nil, nil, fmt.Errorf("failed to obtain lairBGTTokenAddress, err: %w", err)
 	}
-	return ubs.Total0, ubs.Total1, err
+
+	bgtVaultAddress, err := a.lrBGTManager.BgtVaultAddress(opts)
+	if err != nil {
+		a.logger.Error().Msgf("failed to obtain bgtVaultAddress %v", err)
+		return nil, nil, fmt.Errorf("failed to obtain bgtVaultAddress, err: %w", err)
+	}
+
+	lpVaultAddress, err := a.lrBGTManager.LpVaultAddress(opts)
+	if err != nil {
+		a.logger.Error().Msgf("failed to obtain lpVaultAddress %v", err)
+		return nil, nil, fmt.Errorf("failed to obtain lpVaultAddress, err: %w", err)
+	}
+
+	bgtTokenAddress, err := a.lrBGTManager.BgtTokenAddress(opts)
+	if err != nil {
+		a.logger.Error().Msgf("failed to obtain bgtTokenAddress %v", err)
+		return nil, nil, fmt.Errorf("failed to obtain bgtTokenAddress, err: %w", err)
+	}
+
+	vaultInfo, err := a.lrBGTManager.VaultInfo(opts)
+	if err != nil {
+		a.logger.Error().Msgf("failed to obtain vaultInfo %v", err)
+		return nil, nil, fmt.Errorf("failed to obtain vaultInfo, err: %w", err)
+	}
+
+	ubs, err := a.lrBGTManagerHelper.PredictedUnStakeAmount(opts,
+		a.address2,
+		lairBGTTokenAddress,
+		bgtVaultAddress,
+		lpVaultAddress,
+		bgtTokenAddress,
+		vaultInfo.LpTokenAddress,
+		vaultInfo.Token0Address,
+		vaultInfo.Token1Address,
+		amount)
+
+	if err != nil {
+		a.logger.Error().Msgf("failed to obtain unstake balances for lrbgt manager %s, %v", a.address2.String(), err)
+		return nil, nil, fmt.Errorf("failed to get lrbgt manager balances, err: %w", err)
+	}
+	return ubs.UnStakeBgtTokenAmount, ubs.UnStakeBgtTokenAmount, err
+}
+
+// PredictedUnStakeAmount fetches the token balances.
+func (a *LrBGTLPPriceProvider) lpPairTokenAmount(ctx context.Context, amount *big.Int) (*big.Int, *big.Int, error) {
+	opts := &bind.CallOpts{
+		Context:     ctx,
+		BlockNumber: a.block,
+	}
+
+	vaultInfo, err := a.lrBGTManager.VaultInfo(opts)
+	if err != nil {
+		a.logger.Error().Msgf("failed to obtain vaultInfo %v", err)
+		return nil, nil, fmt.Errorf("failed to obtain vaultInfo, err: %w", err)
+	}
+
+	ubs, err := a.lrBGTManagerHelper.LpPairTokenAmount(opts, vaultInfo.LpTokenAddress, amount)
+	if err != nil {
+		a.logger.Error().Msgf("failed to obtain lpPairTokenAmount %s, %v", a.address2.String(), err)
+		return nil, nil, fmt.Errorf("failed to lpPairTokenAmount, err: %w", err)
+	}
+	return ubs.Amount0, ubs.Amount1, err
 }

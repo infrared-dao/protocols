@@ -111,3 +111,6 @@ codegen:
 	abigen --abi assets/abis/steerpool.abi --pkg sc --type SteerPool --out internal/sc/steer_pool.go		
 	abigen --abi assets/abis/wasabeevault.abi --pkg sc --type WasabeeVault --out internal/sc/wasabee_vault.go
 	abigen --abi assets/abis/weberavault.abi --pkg sc --type WeberaVault --out internal/sc/webera_vault.go
+	abigen --abi assets/abis/lrbgt.abi --pkg sc --type LrBGT --out internal/sc/lrbgt.go
+	abigen --abi assets/abis/lrbgtmanager.abi --pkg sc --type LrBGTManager --out internal/sc/lrbgtmanager.go
+	abigen --abi assets/abis/lrbgtmanagerlhelper.abi --pkg sc --type LrBGTManagerHelper --out internal/sc/lrbgtmanagerhelper.go
