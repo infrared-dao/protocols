@@ -1,0 +1,1633 @@
+[
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidInitialization",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotInitializing",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnableInvalidOwner",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "OwnableUnauthorizedAccount",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ReentrancyGuardReentrantCall",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "length",
+          "type": "uint256"
+        }
+      ],
+      "name": "StringsInsufficientHexLength",
+      "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint64",
+          "name": "version",
+          "type": "uint64"
+        }
+      ],
+      "name": "Initialized",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "DECIMAL",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PERCENT",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "ZERO_ADDRESS",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "baseTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lpToken0Ratio",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lpToken1Ratio",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "baseTokenToken0PriceRatio",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token0AndToken1PriceRatio",
+          "type": "uint256"
+        }
+      ],
+      "name": "calcBaseTokenPriceAndLpRatio",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "token0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token1",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "baseTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lpToken0Ratio",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lpToken1Ratio",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "baseTokenToken0PriceRatio",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token1AndToken0PriceRatio",
+          "type": "uint256"
+        }
+      ],
+      "name": "calcBaseTokenPriceAndLpRatioByToken1",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "token0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token1",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "bgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_lpBuyRatio",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "slippage",
+          "type": "uint256"
+        }
+      ],
+      "name": "calcLairBuyLpRatioAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "lpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "slippageLpTokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "lpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_lpBuyRatio",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "slippage",
+          "type": "uint256"
+        }
+      ],
+      "name": "calculateBgtRatio",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "bgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "slippageBgtTokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lairManager",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "vaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token0Address",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token1Address",
+          "type": "address"
+        }
+      ],
+      "name": "calculateReward",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "totalBgtAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalLpTokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        }
+      ],
+      "name": "getKodiakLpTokenAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount1",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        }
+      ],
+      "name": "getKodiakLpTokenPairAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "token0",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token1",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token0Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token1Amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "getLpTokenAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token0Amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "getMaxLpPairToken1AmountByToken0",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "remainToken0Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token1Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "maxSwapToken0Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lpTokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenAsToken0Ratio",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "swapSlippage",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "rewardTokenAddress",
+          "type": "address"
+        }
+      ],
+      "name": "getRewardSwapMinimumAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "baseTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "targetTokenAddress",
+          "type": "address"
+        }
+      ],
+      "name": "getSwapPoolInfo",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "baseTokenAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "targetTokenAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "swapPoolAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "isActive",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct Vault.SwapPoolInfo",
+          "name": "swapPoolInfo",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getSwapPoolInfosLength",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "length",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "baseToken",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "targetToken",
+          "type": "address"
+        }
+      ],
+      "name": "getSwapPrice",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "price",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "pool",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "baseToken",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "targetToken",
+          "type": "address"
+        }
+      ],
+      "name": "getSwapPriceByPool",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "price",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "bgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "receivedBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lpBuyRatio",
+          "type": "uint256"
+        }
+      ],
+      "name": "getTokenAmountByBGT",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "accessBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessLpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessToken0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessToken1",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "bgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token0Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lpBuyRatio",
+          "type": "uint256"
+        }
+      ],
+      "name": "getTokenAmountByToken0",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "accessBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessLpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessToken1ByToken0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token0ForBgtAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "bgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token1Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lpBuyRatio",
+          "type": "uint256"
+        }
+      ],
+      "name": "getTokenAmountByToken1",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "accessBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessLpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessToken0ByToken1",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token1ForBgtAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lairManager",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        }
+      ],
+      "name": "getTotalAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "totalStackedBgtAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalStackedLpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token0Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token1Amount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_owner",
+          "type": "address"
+        }
+      ],
+      "name": "initialize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lpTokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "lpPairTokenAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount1",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lairBgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lairManagerAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token0Address",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token1Address",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "bgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lpTokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "predictCalculateLairBgtTokenAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "mintLairBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "usedBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "usedLpTokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lairManagerAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lairBgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token0Address",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token1Address",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "bgtTokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "predictGetAmountByBgt",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "accessBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessLpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessToken0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessToken1",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "realToken0Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "realToken1Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "remainBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "remainLpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lrBgtAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lairManagerAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lairBgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token0Address",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token1Address",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token0Amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "predictGetAmountByToken0",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "accessBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessLpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessToken1ByToken0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token0ForBgtAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "realToken1Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "remainToken0Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "remainBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "remainLpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lrBgtAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lairManagerAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lairBgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token0Address",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token1Address",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token1Amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "predictGetAmountByToken1",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "accessBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessLpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "accessToken0ByToken1",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "token1ForBgtAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "realToken0Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "remainToken1Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "remainBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "remainLpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lrBgtAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lairBgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lairManagerAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token0Address",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token1Address",
+          "type": "address"
+        }
+      ],
+      "name": "predictGetRatio",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "bgtRatio",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lpRatio",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lairManagerAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token0Address",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token1Address",
+          "type": "address"
+        }
+      ],
+      "name": "predictGetReward",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "totalBgtAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalLpAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lairManagerAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token0Address",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token1Address",
+          "type": "address"
+        }
+      ],
+      "name": "predictLpBuyRatio",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "receivedBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "receivedToken0Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "receivedToken1Amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lpBuyRatio",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lpSlippage",
+          "type": "uint256"
+        }
+      ],
+      "name": "predictMinMaxLpTokenAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "minToken0LpAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "minToken1LpAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "minNowLpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "minPredictedBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "maxToken0LpAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "maxToken1LpAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "maxNowLpTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "maxPredictedBgtTokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lairManagerAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lairBgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpVaultAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "bgtTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lpTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token0Address",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "token1Address",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "predictedUnStakeAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "unStakeBgtTokenAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "unStakeLpTokenAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "baseTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "targetTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "swapPoolAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "isActive",
+          "type": "bool"
+        }
+      ],
+      "name": "setSwapPoolInfo",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_uniSwapHelperAddress",
+          "type": "address"
+        }
+      ],
+      "name": "setUniSwapHelperAddress",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "swapPoolInfos",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "baseTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "targetTokenAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "swapPoolAddress",
+          "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "isActive",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "uniSwapHelperAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+]
