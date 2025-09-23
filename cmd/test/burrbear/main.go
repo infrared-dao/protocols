@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/shopspring/decimal"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -117,4 +118,23 @@ func main() {
 			Str("TVL (USD)", tvl).
 			Msg("successfully fetched TVL")
 	}
+
+	// Test Offchain Kodiak API for fetching average pool APR
+	stakingTokens := []string{
+		"0xcbef1b65399065c2de2c495971e90466ff38f2d0",
+		"0xb34fca9739249578d93a22ce02bf7fad277bad35",
+		"0xc4c039178a79e614609e592d7689ecb3107758b1",
+		"0x567f32e86be3e3963cdbc1887b5043b701f113d9",
+		"0xac8a437d1e6905e419431662aead90fb04ac3008",
+		"0xd10e65a5f8ca6f835f2b1832e37cf150fb955f23",
+		"0xe416c064946112c1626d6700d1081a750b1b1dd7",
+		"0xd170e25f6bcb5ace2108628c647be47d59900ade",
+		"0x7ce7cb1893cfbd680cbfb9dd2a9ae6a62bde66a8",
+	}
+	burrbearAPRs, err := fetchers.FetchBurrBearAPRs(ctx, stakingTokens)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("bad response from burrbear API")
+	}
+	logger.Info().
+		Msgf("fetched burrbear fee base APRs from API %+v", burrbearAPRs)
 }
