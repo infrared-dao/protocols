@@ -27,7 +27,7 @@ func main() {
 	defaultPricesArg += "0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0:18"
 
 	// Command-line arguments
-	lpTokenArg := flag.String("address", "0xd10e65a5f8ca6f835f2b1832e37cf150fb955f23", "LP Token address, ie. bex pool address")
+	lpTokenArg := flag.String("address", "0xd10e65a5f8ca6f835f2b1832e37cf150fb955f23", "LP Token address, ie. burrbear pool address")
 	pricesArg := flag.String("prices", defaultPricesArg, "address:price:decimals, for each token. comma delimited list")
 	rpcURLArg := flag.String("rpcurl", "https://  berachain-rpc-url", "Mainnet Berachain RPC URL")
 	flag.Parse()
@@ -119,7 +119,7 @@ func main() {
 			Msg("successfully fetched TVL")
 	}
 
-	// Test Offchain Kodiak API for fetching average pool APR
+	// Test Offchain BurrBear GraphQL endpoint for swap fee base APR
 	stakingTokens := []string{
 		"0xcbef1b65399065c2de2c495971e90466ff38f2d0",
 		"0xb34fca9739249578d93a22ce02bf7fad277bad35",
