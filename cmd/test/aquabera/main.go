@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -21,16 +22,27 @@ func main() {
 		Logger()
 
 	// Command-line arguments
-	addressArg := flag.String("address", "", "AquaBera contract address")
-	price0Arg := flag.String("price0", "", "address:price of token 0, colon delimited")
-	price1Arg := flag.String("price1", "", "address:price of token 1, colon delimited")
+	addressArg := flag.String("address", "0xf9845a03f7e6b06645a03a28b943c8a4b5fe7bcc", "AquaBera contract address")
+	price0Arg := flag.String("price0", "0x6969696969696969696969696969696969696969:2.58", "address:price of token 0, colon delimited")
+	price1Arg := flag.String("price1", "0x1f7210257fa157227d09449229a9266b0d581337:0.000274", "address:price of token 1, colon delimited")
+	apiKeyArg := flag.String("apikey", "", "A valid aquabera api key for the x-api-key request headers")
 	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com", "Berachain RPC URL")
 	flag.Parse()
+
+	// WBERA-BERAMO kodiak LP aquabera pool "AB-KODIAK-WBERA-BERAMO-10000"
+	// aquabera -address=0xf9845a03f7e6b06645a03a28b943c8a4b5fe7bcc
+	//       -price0=0x6969696969696969696969696969696969696969:2.58
+	//       -price1=0x1f7210257fa157227d09449229a9266b0d581337:0.000274
+	//       -apikey=xxxxxxxxxxxxxxxxxxxxxxxxxxx
+	//       -rpcurl=berachain-rpc-provider
 
 	// Validate required arguments
 	missingArgs := []string{}
 	if *addressArg == "" {
 		missingArgs = append(missingArgs, "address")
+	}
+	if *apiKeyArg == "" {
+		missingArgs = append(missingArgs, "apikey")
 	}
 	if *price0Arg == "" {
 		missingArgs = append(missingArgs, "price0")
@@ -41,7 +53,7 @@ func main() {
 	if len(missingArgs) > 0 {
 		logger.Fatal().
 			Strs("missingArgs", missingArgs).
-			Str("usage", "go run main.go -address <contract-address> -price0 <address:price> -price1 <address:price> -rpcurl <rpc-url>").
+			Str("usage", "go run main.go -address <contract-address> -price0 <address:price> -price1 <address:price> -apikey <key> -rpcurl <rpc-url>").
 			Msg("Missing required arguments")
 	}
 
@@ -112,4 +124,18 @@ func main() {
 			Str("TVL (USD)", tvl).
 			Msg("successfully fetched TVL")
 	}
+
+	// Test Offchain Aquabera API for 7d base APR
+	stakingTokens := []string{
+		"0x04fd6a7b02e2e48caedad7135420604de5f834f8",
+		"0xf9845a03f7e6b06645a03a28b943c8a4b5fe7bcc",
+	}
+	fetchFunction := fetchers.BuildAquaberaAPRsFetcher(*apiKeyArg)
+	aquaberaAPRs, err := fetchFunction(ctx, stakingTokens)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("bad response from aquabera API")
+	}
+	logger.Info().
+		Msgf("fetched aquabera 7d base APRs from API %+v", aquaberaAPRs)
+
 }
