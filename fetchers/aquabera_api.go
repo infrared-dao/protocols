@@ -26,7 +26,7 @@ type aquaberaResponse struct {
 	} `json:"apr"`
 }
 
-func SetAquaberaAPIKey(apiKey string) func(context.Context, []string) (map[string]decimal.Decimal, error) {
+func BuildAquaberaAPRsFetcher(apiKey string) func(context.Context, []string) (map[string]decimal.Decimal, error) {
 	return func(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
 		return FetchAquaberaAPRs(ctx, stakingTokens, apiKey)
 	}

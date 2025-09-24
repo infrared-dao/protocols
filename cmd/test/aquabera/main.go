@@ -130,7 +130,7 @@ func main() {
 		"0x04fd6a7b02e2e48caedad7135420604de5f834f8",
 		"0xf9845a03f7e6b06645a03a28b943c8a4b5fe7bcc",
 	}
-	fetchFunction := fetchers.SetAquaberaAPIKey(*apiKeyArg)
+	fetchFunction := fetchers.BuildAquaberaAPRsFetcher(*apiKeyArg)
 	aquaberaAPRs, err := fetchFunction(ctx, stakingTokens)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("bad response from aquabera API")
