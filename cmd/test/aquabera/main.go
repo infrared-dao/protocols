@@ -25,6 +25,7 @@ func main() {
 	addressArg := flag.String("address", "0xf9845a03f7e6b06645a03a28b943c8a4b5fe7bcc", "AquaBera contract address")
 	price0Arg := flag.String("price0", "0x6969696969696969696969696969696969696969:2.58", "address:price of token 0, colon delimited")
 	price1Arg := flag.String("price1", "0x1f7210257fa157227d09449229a9266b0d581337:0.000274", "address:price of token 1, colon delimited")
+	apiKeyArg := flag.String("apikey", "", "A valid aquabera api key for the x-api-key request headers")
 	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com", "Berachain RPC URL")
 	flag.Parse()
 
@@ -32,12 +33,16 @@ func main() {
 	// aquabera -address=0xf9845a03f7e6b06645a03a28b943c8a4b5fe7bcc
 	//       -price0=0x6969696969696969696969696969696969696969:2.58
 	//       -price1=0x1f7210257fa157227d09449229a9266b0d581337:0.000274
+	//       -apikey=xxxxxxxxxxxxxxxxxxxxxxxxxxx
 	//       -rpcurl=berachain-rpc-provider
 
 	// Validate required arguments
 	missingArgs := []string{}
 	if *addressArg == "" {
 		missingArgs = append(missingArgs, "address")
+	}
+	if *apiKeyArg == "" {
+		missingArgs = append(missingArgs, "apikey")
 	}
 	if *price0Arg == "" {
 		missingArgs = append(missingArgs, "price0")
@@ -48,7 +53,7 @@ func main() {
 	if len(missingArgs) > 0 {
 		logger.Fatal().
 			Strs("missingArgs", missingArgs).
-			Str("usage", "go run main.go -address <contract-address> -price0 <address:price> -price1 <address:price> -rpcurl <rpc-url>").
+			Str("usage", "go run main.go -address <contract-address> -price0 <address:price> -price1 <address:price> -apikey <key> -rpcurl <rpc-url>").
 			Msg("Missing required arguments")
 	}
 
@@ -125,7 +130,8 @@ func main() {
 		"0x04fd6a7b02e2e48caedad7135420604de5f834f8",
 		"0xf9845a03f7e6b06645a03a28b943c8a4b5fe7bcc",
 	}
-	aquaberaAPRs, err := fetchers.FetchAquaberaAPRs(ctx, stakingTokens)
+	fetchFunction := fetchers.SetAquaberaAPIKey(*apiKeyArg)
+	aquaberaAPRs, err := fetchFunction(ctx, stakingTokens)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("bad response from aquabera API")
 	}

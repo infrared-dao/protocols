@@ -15,10 +15,7 @@ Caution: Aquabera API absolutely requires the Mixed case ETH address of the toke
 Incoming addresses are mostly lowercase from DB to explicitly convert to mixed case
 */
 
-const (
-	aquaberaAPI = "https://a8ejzahwod.execute-api.us-east-1.amazonaws.com/prod/vaults/80094/%s"
-	apiKey      = "tVmbB2ybYf1XnV9hNKHil3tnRcx9rGHS20kiP1pT"
-)
+const aquaberaAPI = "https://a8ejzahwod.execute-api.us-east-1.amazonaws.com/prod/vaults/80094/%s"
 
 type aquaberaResponse struct {
 	Address   string `json:"address"`
@@ -29,7 +26,13 @@ type aquaberaResponse struct {
 	} `json:"apr"`
 }
 
-func FetchAquaberaAPRs(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
+func SetAquaberaAPIKey(apiKey string) func(context.Context, []string) (map[string]decimal.Decimal, error) {
+	return func(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
+		return FetchAquaberaAPRs(ctx, stakingTokens, apiKey)
+	}
+}
+
+func FetchAquaberaAPRs(ctx context.Context, stakingTokens []string, apiKey string) (map[string]decimal.Decimal, error) {
 	if len(stakingTokens) == 0 {
 		return nil, nil
 	}
