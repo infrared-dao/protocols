@@ -70,8 +70,12 @@ build: codegen lint
 	rm -f $(BIN_DIR)/wasabi
 	go build -o $(BIN_DIR)/wasabi -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/wasabi/main.go
+    rm -f $(BIN_DIR)/winnieswap
+	go build -o $(BIN_DIR)/winnieswap -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/winnieswap/main.go
 	go build -o $(BIN_DIR)/webera -v -ldflags \
-		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/webera/main.go		
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/webera/main.go
+
 
 lint:
 	golangci-lint run
