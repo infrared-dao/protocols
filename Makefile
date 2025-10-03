@@ -114,4 +114,5 @@ codegen:
 	abigen --abi assets/abis/solvbtc.abi --pkg sc --type SolvBTC --out internal/sc/solvbtc.go	
 	abigen --abi assets/abis/steerpool.abi --pkg sc --type SteerPool --out internal/sc/steer_pool.go		
 	abigen --abi assets/abis/wasabeevault.abi --pkg sc --type WasabeeVault --out internal/sc/wasabee_vault.go
+    abigen --abi assets/abis/stickyvault.abi --pkg sc --type StickyVault --out internal/sc/sticky_vault.go
 	abigen --abi assets/abis/weberavault.abi --pkg sc --type WeberaVault --out internal/sc/webera_vault.go
