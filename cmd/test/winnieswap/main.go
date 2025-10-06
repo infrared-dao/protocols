@@ -25,8 +25,8 @@ func main() {
 
 	// Command-line arguments
 	addressArg := flag.String("address", "0x46fbf6ff1fd62ec89af48c3bb0b63115052dab31", "Smart contract address")
-	price0Arg := flag.String("price0", "0x7507c1dc16935B82698e4C63f2746A2fCf994dF8:8.0", "address:price of token 0 (wBERA)")
-	price1Arg := flag.String("price1", "0x0E4aaF1351de4c0264C5c7056Ef3777b41BD8e03:1.0", "address:price of token 1 (HONEY)")
+	price0Arg := flag.String("price0", "0x6969696969696969696969696969696969696969:2.73", "address:price of token 0 (wBERA)")
+	price1Arg := flag.String("price1", "0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0", "address:price of token 1 (HONEY)")
 	rpcURLArg := flag.String("rpcurl", "https://bartio.rpc.berachain.com", "Berachain RPC URL")
 	flag.Parse()
 
@@ -34,8 +34,8 @@ func main() {
 
 	// wBERA-HONEY WinnieSwap StickyVault (0.05% fee tier)
 	// winnieswap -address=0x46fbf6ff1fd62ec89af48c3bb0b63115052dab31
-	// 			-price0=0x7507c1dc16935B82698e4C63f2746A2fCf994dF8:8.0
-	// 			-price1=0x0E4aaF1351de4c0264C5c7056Ef3777b41BD8e03:1.0
+	// 			-price0=0x6969696969696969696969696969696969696969:2.73
+	// 			-price1=0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0
 	//			-rpcurl=https://bartio.rpc.berachain.com
 
 	// Validate required arguments
@@ -136,6 +136,7 @@ func main() {
 	// Test Offchain WinnieSwap GraphQL API for fetching pool APRs
 	stakingTokens := []string{
 		"0x46fbf6ff1fd62ec89af48c3bb0b63115052dab31", // wBERA-HONEY 0.05%
+		"0x0435c32c79e8341e44047493ba371b502b8c90af", // eWBERA-4-wgBERA 0.05%
 	}
 	winnieswapAPRs, err := fetchers.FetchWinnieSwapAPRs(ctx, stakingTokens)
 	if err != nil {
