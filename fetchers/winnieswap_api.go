@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -18,29 +19,23 @@ type winnieswapGraphQLQuery struct {
 	Query string `json:"query"`
 }
 
-type winnieswapPoolDayData struct {
-	APR string `json:"apr"`
-}
-
-type winnieswapPoolDayDataWrapper struct {
-	Items []winnieswapPoolDayData `json:"items"`
-}
-
-type winnieswapPool struct {
-	ID          string                           `json:"id"`
-	PoolDayData winnieswapPoolDayDataWrapper     `json:"poolDayData"`
-}
-
-type winnieswapPoolsWrapper struct {
-	Items []winnieswapPool `json:"items"`
-}
-
-type winnieswapGraphQLData struct {
-	Pools winnieswapPoolsWrapper `json:"pools"`
-}
-
-type winnieswapGraphQLResponse struct {
-	Data winnieswapGraphQLData `json:"data"`
+type winnieswapResponse struct {
+	Data struct {
+		Vaults struct {
+			Items []struct {
+				ID      string `json:"id"`
+				Pool    string `json:"pool"`
+				Name    string `json:"name"`
+				PoolRef struct {
+					PoolDayData struct {
+						Items []struct {
+							APR string `json:"apr"`
+						} `json:"items"`
+					} `json:"poolDayData"`
+				} `json:"poolRef"`
+			} `json:"items"`
+		} `json:"stickyVaults"`
+	} `json:"data"`
 }
 
 func FetchWinnieSwapAPRs(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
@@ -49,24 +44,27 @@ func FetchWinnieSwapAPRs(ctx context.Context, stakingTokens []string) (map[strin
 	}
 
 	// Normalize token addresses to lowercase
-	normalizedTokens := make(map[string]bool)
-	for _, tokenAddress := range stakingTokens {
-		normalizedTokens[strings.ToLower(tokenAddress)] = true
+	normalizedTokens := make([]string, len(stakingTokens))
+	for idx, tokenAddress := range stakingTokens {
+		normalizedTokens[idx] = strings.ToLower(tokenAddress)
 	}
 
 	// Build the GraphQL query
-	query := `query MyQuery {
-  pools {
-    items {
-      poolDayData(orderBy: "date", orderDirection: "desc", limit: 1) {
-        items {
-          apr
-        }
-      }
-      id
-    }
-  }
-}`
+	query := `query VaultQuery {
+		stickyVaults {
+			items {
+				id,
+				pool,
+				name,  
+				poolRef {
+					poolDayData(orderBy: "date", orderDirection: "desc", limit: 1) {
+						items {
+							apr
+						}
+					}
+				}
+			}  
+		}}`
 
 	requestBody := winnieswapGraphQLQuery{
 		Query: query,
@@ -93,41 +91,41 @@ func FetchWinnieSwapAPRs(ctx context.Context, stakingTokens []string) (map[strin
 		return nil, err
 	}
 
-	var results winnieswapGraphQLResponse
+	var results winnieswapResponse
 	err = json.Unmarshal(responseJSON, &results)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal WinnieSwap response: %w", err)
 	}
 
+	scalePercent := decimal.NewFromFloat(100.0)
 	winnieswapAPRs := make(map[string]decimal.Decimal)
 
-	// Process pools and match against requested tokens
-	for _, pool := range results.Data.Pools.Items {
-		poolID := strings.ToLower(pool.ID)
+	// Process vaults and match against requested tokens
+	for _, vault := range results.Data.Vaults.Items {
+		vaultID := strings.ToLower(vault.ID)
 
-		// Check if this pool ID matches any of our requested tokens
-		if _, found := normalizedTokens[poolID]; !found {
+		if !slices.Contains(normalizedTokens, vaultID) {
 			continue
 		}
 
 		// Get the latest APR from poolDayData
-		if len(pool.PoolDayData.Items) > 0 {
-			aprString := pool.PoolDayData.Items[0].APR
+		if len(vault.PoolRef.PoolDayData.Items) > 0 {
+			aprString := vault.PoolRef.PoolDayData.Items[0].APR
 			if aprString != "" {
 				apr, err := decimal.NewFromString(aprString)
 				if err != nil {
 					log.Warn().
-						Str("poolID", poolID).
+						Str("vaultID", vaultID).
 						Str("aprString", aprString).
 						Err(err).
 						Msg("failed to parse APR value")
 					continue
 				}
 
-				// Assuming the API returns APR as a decimal (e.g., 0.155 for 15.5%)
-				// If it returns as percentage (15.5), divide by 100
-				// Adjust this based on the actual API response format
-				winnieswapAPRs[poolID] = apr
+				// returns as percentage (15.5% should be 0.155), so divide by 100
+				baseAPR := apr.Div(scalePercent)
+
+				winnieswapAPRs[vaultID] = baseAPR
 			}
 		}
 	}
