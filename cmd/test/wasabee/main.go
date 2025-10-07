@@ -101,15 +101,21 @@ func main() {
 	lpPrice, err := provider.LPTokenPrice(ctx)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to get LP token price")
+	} else {
+		logger.Info().
+			Str("LPTokenPrice (USD)", lpPrice).
+			Msg("successfully fetched LP token price")
 	}
-	fmt.Printf("LP Token Price: $%s\n", lpPrice)
 
 	// Get TVL
 	tvl, err := provider.TVL(ctx)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to get TVL")
+	} else {
+		logger.Info().
+			Str("TVL (USD)", tvl).
+			Msg("successfully fetched TVL")
 	}
-	fmt.Printf("TVL: $%s\n", tvl)
 
 	// Test Offchain Wasabee GraphQL API for fetching pool APRs
 	stakingTokens := []string{

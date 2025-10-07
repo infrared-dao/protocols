@@ -16,17 +16,14 @@ const (
 )
 
 type wasabeeGraphQLQuery struct {
-	Query     string `json:"query"`
-	Operation string `json:"operationName"`
+	Query string `json:"query"`
 }
 
 type wasabeeResponse struct {
 	Data struct {
 		Vaults []struct {
-			ID      string `json:"id"`
-			APR_1D  string `json:"feeApr_1d"`
-			APR_7D  string `json:"feeApr_7d"`
-			APR_30D string `json:"feeApr_30d"`
+			ID     string `json:"id"`
+			APR_7D string `json:"feeApr_7d"`
 		} `json:"berachain_alm_allVaults"`
 	} `json:"data"`
 }
@@ -42,20 +39,11 @@ func FetchWasabeeAPRs(ctx context.Context, stakingTokens []string) (map[string]d
 		normalizedTokens[idx] = strings.ToLower(tokenAddress)
 	}
 
-	// Build the GraphQL query
-	query := `query FetchAllVaults($where: Berachain_almallVaultsSearch) {
-		berachain_alm_allVaults(where: $where) {
-			id, 
-			feeApr_1d, 
-			feeApr_3d, 
-			feeApr_7d, 
-			feeApr_30d, 
-			protocol
-		}}`
+	// Simplified GraphQL query
+	query := `{ berachain_alm_allVaults { id, feeApr_7d } }`
 
 	requestBody := wasabeeGraphQLQuery{
-		Query:     query,
-		Operation: "FetchAllVaults",
+		Query: query,
 	}
 
 	requestJSON, err := json.Marshal(requestBody)
