@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -100,13 +101,34 @@ func main() {
 	lpPrice, err := provider.LPTokenPrice(ctx)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to get LP token price")
+	} else {
+		logger.Info().
+			Str("LPTokenPrice (USD)", lpPrice).
+			Msg("successfully fetched LP token price")
 	}
-	fmt.Printf("LP Token Price: $%s\n", lpPrice)
 
 	// Get TVL
 	tvl, err := provider.TVL(ctx)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to get TVL")
+	} else {
+		logger.Info().
+			Str("TVL (USD)", tvl).
+			Msg("successfully fetched TVL")
 	}
-	fmt.Printf("TVL: $%s\n", tvl)
+
+	// Test Offchain Wasabee GraphQL API for fetching pool APRs
+	stakingTokens := []string{
+		"0x3640587709a387b54b0df555cd651a95a54fa900", // BEE-WBERA
+		"0xe57d868d244d2cf2e9679eaba2a3048e58674565", // WBERA-iBERA
+		"0xac04b1abadf214b57f7ade1dd905ab7acac23a6b", // WBERA-wgBERA
+		"0xec06041013b3a97c58b9ab61eae9079bc594eda3", // WETH-WBERA
+	}
+	wasabeeAPRs, err := fetchers.FetchWasabeeAPRs(ctx, stakingTokens)
+	if err != nil {
+		logger.Warn().Err(err).Msg("failed to fetch APRs from Wasabee API")
+	} else {
+		logger.Info().
+			Msgf("fetched Wasabee APRs from API %+v", wasabeeAPRs)
+	}
 }

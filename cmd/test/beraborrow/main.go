@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -93,5 +94,20 @@ func main() {
 		logger.Info().
 			Str("TVL (USD)", tvl).
 			Msg("successfully fetched TVL")
+	}
+
+	// Test Offchain Beraborrow GraphQL API for fetching pool APRs
+	stakingTokens := []string{
+		"0x62cf6e355c77edb6f5c8eb2085a85cf4de4c1852", // bUNIBTC
+		"0x597877ccf65be938bd214c4c46907669e3e62128", // sNECT
+		"0x8628e618b66e7cddbe0adc84b96bea3977954507", // bWGBERA
+		"0x6751c09113a83a83a43829fd0b3bc0d7bdbe07bf", // bWBERA
+	}
+	beraborrowAPRs, err := fetchers.FetchBeraborrowAPRs(ctx, stakingTokens)
+	if err != nil {
+		logger.Warn().Err(err).Msg("failed to fetch APRs from Beraborrow API")
+	} else {
+		logger.Info().
+			Msgf("fetched Beraborrow APRs from API %+v", beraborrowAPRs)
 	}
 }
