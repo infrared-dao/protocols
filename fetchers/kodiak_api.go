@@ -48,7 +48,7 @@ func FetchKodiakAPRs(ctx context.Context, stakingTokens []string) (map[string]de
 	apiURL := kodiakAPIBase + kodiakVaultsEndpoint
 	params := url.Values{}
 	params.Add("chainId", kodiakChainID)
-	params.Add("limit", "1000") // Get more vaults to ensure we find matches
+	params.Add("limit", "200") // Get more vaults to ensure we find matches
 
 	fullURL := fmt.Sprintf("%s?%s", apiURL, params.Encode())
 
