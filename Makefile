@@ -12,7 +12,10 @@ all: build
 build: codegen lint
 	rm -f $(BIN_DIR)/aquabera
 	go build -o $(BIN_DIR)/aquabera -v -ldflags \
-		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/aquabera/main.go		
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/aquabera/main.go
+	rm -f $(BIN_DIR)/bend
+	go build -o $(BIN_DIR)/bend -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/bend/main.go
 	rm -f $(BIN_DIR)/beraborrow
 	go build -o $(BIN_DIR)/beraborrow -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/beraborrow/main.go
@@ -93,6 +96,7 @@ codegen:
 	abigen --abi assets/abis/crocquery.abi --pkg sc --type CrocQuery --out internal/sc/croc_query.go
 	abigen --abi assets/abis/balancerbasepool.abi --pkg sc --type BalancerBasePool --out internal/sc/balancer_base_pool.go
 	abigen --abi assets/abis/balancervault.abi --pkg sc --type BalancerVault --out internal/sc/balancer_vault.go
+	abigen --abi assets/abis/metamorpho.abi --pkg sc --type BendVault --out internal/sc/bend_vault.go
 	abigen --abi assets/abis/beraborrowiw.abi --pkg sc --type BeraBorrowIW --out internal/sc/beraborrow_iw.go
 	abigen --abi assets/abis/beraborrowcicv.abi --pkg sc --type BeraBorrowCICV --out internal/sc/beraborrow_cicv.go
 	abigen --abi assets/abis/beraborrowsnect.abi --pkg sc --type BeraBorrowSNECT --out internal/sc/beraborrow_snect.go
