@@ -25,6 +25,9 @@ build: codegen lint
 	rm -f $(BIN_DIR)/bexv2
 	go build -o $(BIN_DIR)/bexv2 -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/bexv2/main.go
+	rm -f $(BIN_DIR)/brownfi
+	go build -o $(BIN_DIR)/brownfi -v -ldflags \
+		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/brownfi/main.go
 	rm -f $(BIN_DIR)/bulla
 	go build -o $(BIN_DIR)/bulla -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/bulla/main.go
@@ -100,6 +103,7 @@ codegen:
 	abigen --abi assets/abis/beraborrowiw.abi --pkg sc --type BeraBorrowIW --out internal/sc/beraborrow_iw.go
 	abigen --abi assets/abis/beraborrowcicv.abi --pkg sc --type BeraBorrowCICV --out internal/sc/beraborrow_cicv.go
 	abigen --abi assets/abis/beraborrowsnect.abi --pkg sc --type BeraBorrowSNECT --out internal/sc/beraborrow_snect.go
+	abigen --abi assets/abis/brownfipool.abi --pkg sc --type BrownFiPool --out internal/sc/brownfi_pool.go
 	abigen --abi assets/abis/bulla.abi --pkg sc --type Bulla --out internal/sc/bulla.go
 	abigen --abi assets/abis/aquabera.abi --pkg sc --type AquaBera --out internal/sc/aquabera.go
 	abigen --abi assets/abis/d2vault.abi --pkg sc --type D2Vault --out internal/sc/d2_vault.go
