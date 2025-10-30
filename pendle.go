@@ -78,6 +78,7 @@ func (p *PendleLPPriceProvider) Initialize(ctx context.Context, client *ethclien
 			"Content-Type": "application/json; charset=UTF-8",
 			"Accept":       "application/json",
 		},
+		RequestTimeout: 30 * time.Second,
 	}
 	p.params = params
 
