@@ -19,7 +19,7 @@ type HTTPParams struct {
 }
 
 const (
-	DefaultRequestTimeout = 12 * time.Second
+	DefaultRequestTimeout = 30 * time.Second
 )
 
 func timeout(params HTTPParams) time.Duration {
