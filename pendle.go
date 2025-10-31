@@ -135,7 +135,7 @@ func (p *PendleLPPriceProvider) GetConfig(ctx context.Context, address string, c
 		Context: ctx,
 	}
 
-	poolAddress, err := contract.PendleWrapperCaller.LP(opts)
+	poolAddress, err := contract.LP(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to obtain poolAddress of LP from wrapped contract %s, %v", poolAddress, err)
 		return nil, err
