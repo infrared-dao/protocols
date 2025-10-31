@@ -19,7 +19,7 @@ type HTTPParams struct {
 }
 
 const (
-	DefaultRequestTimeout = 12 * time.Second
+	DefaultRequestTimeout = 30 * time.Second
 )
 
 func timeout(params HTTPParams) time.Duration {
@@ -52,7 +52,11 @@ func HTTPGet(ctx context.Context, params HTTPParams) ([]byte, error) {
 		log.Error().Msg(err.Error())
 		return nil, err
 	}
-	defer response.Body.Close()
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			log.Error().Err(closeErr).Msg("failed to close response body")
+		}
+	}()
 
 	// Read the response body
 	responseBody, err := io.ReadAll(response.Body)
@@ -95,7 +99,11 @@ func HTTPPost(ctx context.Context, params HTTPParams) ([]byte, error) {
 		log.Error().Msg(err.Error())
 		return nil, err
 	}
-	defer response.Body.Close()
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			log.Error().Err(closeErr).Msg("failed to close response body")
+		}
+	}()
 
 	// Read the response body
 	responseBody, err := io.ReadAll(response.Body)

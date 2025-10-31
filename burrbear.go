@@ -95,7 +95,7 @@ func (bb *BurrBearLPPriceProvider) LPTokenPrice(ctx context.Context) (string, er
 	}
 
 	// Using GetActualSupply because this is how much is circulating for pools which lock up some LP tokens
-	totalSupply, err := bb.poolContract.BalancerBasePoolCaller.GetActualSupply(opts)
+	totalSupply, err := bb.poolContract.GetActualSupply(opts)
 	if err != nil {
 		return "", err
 	}
@@ -153,7 +153,7 @@ func (bb *BurrBearLPPriceProvider) GetConfig(ctx context.Context, poolAddress st
 	}
 
 	// returns as common.Address, need to get a string for saving with Hex() call
-	vaultAddress, err := poolContract.BalancerBasePoolCaller.GetVault(opts)
+	vaultAddress, err := poolContract.GetVault(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to obtain poolID for bex pool %s, %v", poolAddress, err)
 		return nil, err
@@ -161,7 +161,7 @@ func (bb *BurrBearLPPriceProvider) GetConfig(ctx context.Context, poolAddress st
 	bbpc.VaultContract = vaultAddress.Hex()
 
 	// returns as [32]byte
-	poolID, err := poolContract.BalancerBasePoolCaller.GetPoolId(opts)
+	poolID, err := poolContract.GetPoolId(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to obtain poolID for bex pool %s, %v", poolAddress, err)
 		return nil, err
@@ -169,7 +169,7 @@ func (bb *BurrBearLPPriceProvider) GetConfig(ctx context.Context, poolAddress st
 	bbpc.PoolID = poolID
 
 	// decimals is uint8
-	decimals, err := poolContract.BalancerBasePoolCaller.Decimals(opts)
+	decimals, err := poolContract.Decimals(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to obtain number of decimals for LP token %s, %v", poolAddress, err)
 		return nil, err
@@ -243,7 +243,7 @@ func (bb *BurrBearLPPriceProvider) getUnderlyingBalances(ctx context.Context) (m
 			LastChangeBlock *big.Int
 		}
 	********************************************/
-	poolTokens, err := bb.vaultContract.BalancerVaultCaller.GetPoolTokens(opts, bb.config.PoolID)
+	poolTokens, err := bb.vaultContract.GetPoolTokens(opts, bb.config.PoolID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pool tokens and balances from bex, err: %w", err)
 	}

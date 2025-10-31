@@ -89,7 +89,7 @@ func (b *BexV2LPPriceProvider) LPTokenPrice(ctx context.Context) (string, error)
 	}
 
 	// Using GetActualSupply because this is how much is circulating for pools which lock up some LP tokens
-	totalSupply, err := b.poolContract.BalancerBasePoolCaller.GetActualSupply(opts)
+	totalSupply, err := b.poolContract.GetActualSupply(opts)
 	if err != nil {
 		return "", err
 	}
@@ -147,7 +147,7 @@ func (b *BexV2LPPriceProvider) GetConfig(ctx context.Context, poolAddress string
 	}
 
 	// returns as [32]byte
-	poolID, err := poolContract.BalancerBasePoolCaller.GetPoolId(opts)
+	poolID, err := poolContract.GetPoolId(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to obtain poolID for bex pool %s, %v", poolAddress, err)
 		return nil, err
@@ -155,7 +155,7 @@ func (b *BexV2LPPriceProvider) GetConfig(ctx context.Context, poolAddress string
 	bpc.PoolID = poolID
 
 	// decimals is uint8
-	decimals, err := poolContract.BalancerBasePoolCaller.Decimals(opts)
+	decimals, err := poolContract.Decimals(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to obtain number of decimals for LP token %s, %v", poolAddress, err)
 		return nil, err
@@ -229,7 +229,7 @@ func (b *BexV2LPPriceProvider) getUnderlyingBalances(ctx context.Context) (map[s
 			LastChangeBlock *big.Int
 		}
 	********************************************/
-	poolTokens, err := b.vaultContract.BalancerVaultCaller.GetPoolTokens(opts, b.config.PoolID)
+	poolTokens, err := b.vaultContract.GetPoolTokens(opts, b.config.PoolID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pool tokens and balances from bex, err: %w", err)
 	}

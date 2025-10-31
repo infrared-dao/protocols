@@ -103,7 +103,7 @@ func (b *BexLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	}
 
 	// Fetch total supply from ERC20 interface
-	totalSupply, err := b.erc20Contract.ERC20Caller.TotalSupply(opts)
+	totalSupply, err := b.erc20Contract.TotalSupply(opts)
 	if err != nil {
 		return "", fmt.Errorf("failed to get bex total supply, err: %w", err)
 	}
@@ -171,7 +171,7 @@ func (b *BexLPPriceProvider) GetConfig(ctx context.Context, address string, clie
 	}
 
 	// returns as *big.Int
-	idx, err := crocLPERC20Contract.CrocLPERC20Caller.PoolType(opts)
+	idx, err := crocLPERC20Contract.PoolType(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to obtain pool type idx for bex pool %s, %v", address, err)
 		return nil, err
@@ -179,7 +179,7 @@ func (b *BexLPPriceProvider) GetConfig(ctx context.Context, address string, clie
 	bpc.IDX = idx.String()
 
 	// base token address
-	addr, err := crocLPERC20Contract.CrocLPERC20Caller.BaseToken(opts)
+	addr, err := crocLPERC20Contract.BaseToken(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to obtain base token address for bex pool %s, %v", address, err)
 		return nil, err
@@ -187,7 +187,7 @@ func (b *BexLPPriceProvider) GetConfig(ctx context.Context, address string, clie
 	bpc.Base = strings.ToLower(addr.Hex())
 
 	// quote token address
-	addr, err = crocLPERC20Contract.CrocLPERC20Caller.QuoteToken(opts)
+	addr, err = crocLPERC20Contract.QuoteToken(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to obtain base token address for bex pool %s, %v", address, err)
 		return nil, err
@@ -195,7 +195,7 @@ func (b *BexLPPriceProvider) GetConfig(ctx context.Context, address string, clie
 	bpc.Quote = strings.ToLower(addr.Hex())
 
 	// decimals is uint8
-	decimals, err := erc20Contract.ERC20Caller.Decimals(opts)
+	decimals, err := erc20Contract.Decimals(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to obtain number of decimals for LP token %s, %v", address, err)
 		return nil, err
@@ -276,7 +276,7 @@ func (b *BexLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.In
 
 	// 1. Get the price ratio at the current point on swap curve
 	// pricePoint is a Q64.Q64 representation of the sqrt of price ratio in a *big.Int
-	pricePoint, err := b.queryContract.CrocQueryCaller.QueryPrice(opts, base, quote, poolIdx)
+	pricePoint, err := b.queryContract.QueryPrice(opts, base, quote, poolIdx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get bex query price of pool, err: %w", err)
 	}
@@ -287,7 +287,7 @@ func (b *BexLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.In
 
 	// 2. Get the virtual liquidity at that point on swap curve
 	// Liquidity is square root of the product of base pool supply and quote pool supply
-	liquidity, err := b.queryContract.CrocQueryCaller.QueryLiquidity(opts, base, quote, poolIdx)
+	liquidity, err := b.queryContract.QueryLiquidity(opts, base, quote, poolIdx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get bex pool liquidity, err: %w", err)
 	}

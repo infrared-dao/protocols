@@ -78,7 +78,6 @@ func (p *PendleLPPriceProvider) Initialize(ctx context.Context, client *ethclien
 			"Content-Type": "application/json; charset=UTF-8",
 			"Accept":       "application/json",
 		},
-		RequestTimeout: 30 * time.Second,
 	}
 	p.params = params
 
@@ -136,7 +135,7 @@ func (p *PendleLPPriceProvider) GetConfig(ctx context.Context, address string, c
 		Context: ctx,
 	}
 
-	poolAddress, err := contract.PendleWrapperCaller.LP(opts)
+	poolAddress, err := contract.LP(opts)
 	if err != nil {
 		err = fmt.Errorf("failed to obtain poolAddress of LP from wrapped contract %s, %v", poolAddress, err)
 		return nil, err
