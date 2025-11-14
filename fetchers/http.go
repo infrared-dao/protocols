@@ -113,7 +113,7 @@ func HTTPPost(ctx context.Context, params HTTPParams) ([]byte, error) {
 		return nil, err
 	}
 
-	if response.StatusCode != http.StatusOK {
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated {
 		err = fmt.Errorf("%d status code for POST request with URL ('%s')", response.StatusCode, params.URL)
 		log.Error().Msg(err.Error())
 		log.Info().Msgf("Response: '%s'", string(responseBody))
