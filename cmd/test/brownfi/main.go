@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -132,4 +133,14 @@ func main() {
 			Msg("successfully fetched TVL")
 	}
 
+	// Test Offchain BurrBear GraphQL endpoint for swap fee base APR
+	stakingTokens := []string{
+		"0xd932c344e21ef6c3a94971bf4d4cc71304e2a66c",
+	}
+	brownfiAPRs, err := fetchers.FetchBrownfiAPRs(ctx, stakingTokens)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("bad response from brownfi API")
+	}
+	logger.Info().
+		Msgf("fetched brownfi fee base APRs from API %+v", brownfiAPRs)
 }
