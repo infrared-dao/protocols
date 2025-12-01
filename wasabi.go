@@ -3,6 +3,7 @@ package protocols
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -162,6 +163,12 @@ func (w *WasabiLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pr
 	if prices != nil {
 		w.priceMap = prices
 	}
+}
+
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for Wasabi protocol
+func (w *WasabiLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, errors.New("TVLBreakdown not yet implemented for Wasabi")
 }
 
 // Internal Helper methods not able to be called except in this file

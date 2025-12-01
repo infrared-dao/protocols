@@ -187,6 +187,12 @@ func (a *AquaBeraLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for AquaBera protocol
+func (a *AquaBeraLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, errors.New("TVLBreakdown not yet implemented for AquaBera")
+}
+
 // Internal Helper methods not able to be called except in this file
 
 // Helper method to calculate the total value of underlying assets

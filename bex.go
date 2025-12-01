@@ -217,6 +217,71 @@ func (b *BexLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens (base and quote).
+func (b *BexLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	// Fetch underlying balances
+	amountBase, amountQuote, err := b.getUnderlyingBalances(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	priceBase, err := b.getPrice(b.config.Base)
+	if err != nil {
+		return nil, err
+	}
+	amountBaseDecimal := NormalizeAmount(amountBase, priceBase.Decimals)
+	baseUSDValue := amountBaseDecimal.Mul(priceBase.Price)
+
+	priceQuote, err := b.getPrice(b.config.Quote)
+	if err != nil {
+		return nil, err
+	}
+	amountQuoteDecimal := NormalizeAmount(amountQuote, priceQuote.Decimals)
+	quoteUSDValue := amountQuoteDecimal.Mul(priceQuote.Price)
+
+	totalValue := baseUSDValue.Add(quoteUSDValue)
+
+	// Calculate ratios (handle zero TVL case)
+	var baseRatio, quoteRatio decimal.Decimal
+	if totalValue.IsZero() {
+		baseRatio = decimal.Zero
+		quoteRatio = decimal.Zero
+	} else {
+		baseRatio = baseUSDValue.Div(totalValue)
+		quoteRatio = quoteUSDValue.Div(totalValue)
+	}
+
+	breakdown := map[string]TokenTVL{
+		b.config.Base: {
+			TokenAddress: b.config.Base,
+			TokenSymbol:  priceBase.TokenName,
+			Amount:       amountBaseDecimal,
+			USDValue:     baseUSDValue,
+			Ratio:        baseRatio,
+		},
+		b.config.Quote: {
+			TokenAddress: b.config.Quote,
+			TokenSymbol:  priceQuote.TokenName,
+			Amount:       amountQuoteDecimal,
+			USDValue:     quoteUSDValue,
+			Ratio:        quoteRatio,
+		},
+	}
+
+	b.logger.Debug().
+		Str("baseToken", b.config.Base).
+		Str("baseAmount", amountBaseDecimal.String()).
+		Str("baseUSDValue", baseUSDValue.String()).
+		Str("baseRatio", baseRatio.String()).
+		Str("quoteToken", b.config.Quote).
+		Str("quoteAmount", amountQuoteDecimal.String()).
+		Str("quoteUSDValue", quoteUSDValue.String()).
+		Str("quoteRatio", quoteRatio.String()).
+		Msg("TVL breakdown calculated successfully")
+
+	return breakdown, nil
+}
+
 // Internal Helper methods not able to be called except in this file
 
 func (b *BexLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {

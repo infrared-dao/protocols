@@ -177,6 +177,62 @@ func (b *BexV2LPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pri
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+func (b *BexV2LPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	balanceData, err := b.getUnderlyingBalances(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	breakdown := make(map[string]TokenTVL, len(balanceData))
+	type tokenData struct {
+		amount   decimal.Decimal
+		usdValue decimal.Decimal
+		price    *Price
+	}
+	tokenCache := make(map[string]tokenData, len(balanceData))
+	totalValue := decimal.Zero
+
+	for token, balance := range balanceData {
+		price, err := b.getPrice(token)
+		if err != nil {
+			return nil, err
+		}
+		balanceDecimal := NormalizeAmount(balance, price.Decimals)
+		usdValue := balanceDecimal.Mul(price.Price)
+
+		tokenCache[token] = tokenData{
+			amount:   balanceDecimal,
+			usdValue: usdValue,
+			price:    price,
+		}
+		totalValue = totalValue.Add(usdValue)
+	}
+
+	// Build breakdown with pre-calculated values
+	for token, data := range tokenCache {
+		// Calculate ratio (handle zero TVL case)
+		var ratio decimal.Decimal
+		if totalValue.IsZero() {
+			ratio = decimal.Zero
+		} else {
+			ratio = data.usdValue.Div(totalValue)
+		}
+
+		breakdown[token] = TokenTVL{
+			TokenAddress: token,
+			TokenSymbol:  data.price.TokenName,
+			Amount:       data.amount,
+			USDValue:     data.usdValue,
+			Ratio:        ratio,
+		}
+	}
+
+	b.logger.Debug().Msg("TVL breakdown calculated successfully")
+
+	return breakdown, nil
+}
+
 // Internal Helper methods not able to be called except in this file
 
 func (b *BexV2LPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {

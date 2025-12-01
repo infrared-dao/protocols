@@ -129,6 +129,23 @@ func main() {
 			Msg("successfully fetched TVL")
 	}
 
+	// Fetch TVL Breakdown
+	breakdown, err := provider.TVLBreakdown(ctx)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to fetch TVL breakdown")
+	} else {
+		logger.Info().Msg("successfully fetched TVL breakdown")
+		for tokenAddr, tokenTVL := range breakdown {
+			logger.Info().
+				Str("token", tokenAddr).
+				Str("symbol", tokenTVL.TokenSymbol).
+				Str("amount", tokenTVL.Amount.String()).
+				Str("usdValue", tokenTVL.USDValue.String()).
+				Str("ratio", tokenTVL.Ratio.String()).
+				Msg("token breakdown")
+		}
+	}
+
 	// Test Offchain BEX API for fetching current pool APR
 	stakingTokens := []string{
 		"0x1207c619086a52edef4a4b7af881b5ddd367a919",

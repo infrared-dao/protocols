@@ -193,6 +193,12 @@ func (w *BrownFiLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]P
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for BrownFi protocol
+func (w *BrownFiLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, errors.New("TVLBreakdown not yet implemented for BrownFi")
+}
+
 // Internal Helper methods not able to be called except in this file
 
 func (w *BrownFiLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {

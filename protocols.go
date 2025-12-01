@@ -33,6 +33,13 @@ type Protocol interface {
 	// Returns an error if the TVL cannot be determined.
 	TVL(ctx context.Context) (string, error)
 
+	// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+	// The returned map keys are token addresses (lowercase) and values are TokenTVL structs
+	// containing the token amount and its USD value contribution to the total TVL.
+	// This method should be independent of price and retrievable by a specified block.
+	// Returns an error if the breakdown cannot be determined.
+	TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error)
+
 	// UpdateBlock sets the internal block and priceMap state to different time
 	// If the protocol doesn't need a price map the second param can be nil
 	UpdateBlock(block *big.Int, prices map[string]Price)
@@ -47,6 +54,15 @@ type Price struct {
 	TokenName string
 	Decimals  uint
 	Price     decimal.Decimal
+}
+
+// TokenTVL represents the TVL contribution of a single token
+type TokenTVL struct {
+	TokenAddress string          // Token contract address (lowercase)
+	TokenSymbol  string          // Token symbol for reference
+	Amount       decimal.Decimal // Normalized token amount
+	USDValue     decimal.Decimal // USD value of this token's contribution
+	Ratio        decimal.Decimal // Ratio of this token's value to total TVL (0-1)
 }
 
 // NormalizeAmount returns a token amount as a big.Int and the number of decimals (uint) get a decimal.Decimal amount

@@ -3,6 +3,7 @@ package protocols
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -162,6 +163,12 @@ func (w *WeberaLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pr
 	if prices != nil {
 		w.priceMap = prices
 	}
+}
+
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for Webera protocol
+func (w *WeberaLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, errors.New("TVLBreakdown not yet implemented for Webera")
 }
 
 ///// Helpers

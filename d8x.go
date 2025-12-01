@@ -3,6 +3,7 @@ package protocols
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -198,6 +199,12 @@ func (d8x *D8xLPPriceProvider) GetConfig(ctx context.Context, address string, et
 func (d8x *D8xLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price) {
 	d8x.block = block
 	// prices param can be ignored since d8x uses onchain oracles
+}
+
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for D8x protocol
+func (d8x *D8xLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, errors.New("TVLBreakdown not yet implemented for D8x")
 }
 
 // ABDKToDecimal converts an ABDK fixed point 64.64 number to deicmal.Decimal

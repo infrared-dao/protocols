@@ -3,6 +3,7 @@ package protocols
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -192,6 +193,12 @@ func (w *EtherfiLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]P
 	if prices != nil {
 		w.priceMap = prices
 	}
+}
+
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for Etherfi protocol
+func (w *EtherfiLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, errors.New("TVLBreakdown not yet implemented for Etherfi")
 }
 
 ///// Helpers

@@ -263,6 +263,71 @@ func (k *KodiakLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pr
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens (token0 and token1).
+func (k *KodiakLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	// Fetch internal balances
+	amount0, amount1, err := k.getBalances(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	price0, err := k.getPrice(k.config.Token0)
+	if err != nil {
+		return nil, err
+	}
+	amount0Decimal := NormalizeAmount(amount0, price0.Decimals)
+	token0USDValue := amount0Decimal.Mul(price0.Price)
+
+	price1, err := k.getPrice(k.config.Token1)
+	if err != nil {
+		return nil, err
+	}
+	amount1Decimal := NormalizeAmount(amount1, price1.Decimals)
+	token1USDValue := amount1Decimal.Mul(price1.Price)
+
+	totalValue := token0USDValue.Add(token1USDValue)
+
+	// Calculate ratios (handle zero TVL case)
+	var token0Ratio, token1Ratio decimal.Decimal
+	if totalValue.IsZero() {
+		token0Ratio = decimal.Zero
+		token1Ratio = decimal.Zero
+	} else {
+		token0Ratio = token0USDValue.Div(totalValue)
+		token1Ratio = token1USDValue.Div(totalValue)
+	}
+
+	breakdown := map[string]TokenTVL{
+		k.config.Token0: {
+			TokenAddress: k.config.Token0,
+			TokenSymbol:  price0.TokenName,
+			Amount:       amount0Decimal,
+			USDValue:     token0USDValue,
+			Ratio:        token0Ratio,
+		},
+		k.config.Token1: {
+			TokenAddress: k.config.Token1,
+			TokenSymbol:  price1.TokenName,
+			Amount:       amount1Decimal,
+			USDValue:     token1USDValue,
+			Ratio:        token1Ratio,
+		},
+	}
+
+	k.logger.Debug().
+		Str("token0", k.config.Token0).
+		Str("token0Amount", amount0Decimal.String()).
+		Str("token0USDValue", token0USDValue.String()).
+		Str("token0Ratio", token0Ratio.String()).
+		Str("token1", k.config.Token1).
+		Str("token1Amount", amount1Decimal.String()).
+		Str("token1USDValue", token1USDValue.String()).
+		Str("token1Ratio", token1Ratio.String()).
+		Msg("TVL breakdown calculated successfully")
+
+	return breakdown, nil
+}
+
 // Internal Helper methods not able to be called except in this file
 
 func (k *KodiakLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {

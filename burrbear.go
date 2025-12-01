@@ -191,6 +191,12 @@ func (bb *BurrBearLPPriceProvider) UpdateBlock(block *big.Int, prices map[string
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for BurrBear protocol
+func (bb *BurrBearLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, errors.New("TVLBreakdown not yet implemented for BurrBear")
+}
+
 // Internal Helper methods not able to be called except in this file
 
 func (bb *BurrBearLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
