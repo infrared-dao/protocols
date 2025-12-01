@@ -79,10 +79,6 @@ func (t *TermMaxVaultPriceProvider) Initialize(ctx context.Context, client *ethc
 }
 
 func (t *TermMaxVaultPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	return t.SharePrice(ctx)
-}
-
-func (t *TermMaxVaultPriceProvider) SharePrice(ctx context.Context) (string, error) {
 	ts, err := t.getTotalSupply(ctx)
 	if err != nil {
 		return "", err

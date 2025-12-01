@@ -20,13 +20,8 @@ func main() {
 
 	addressArg := flag.String("address", "", "TermMax vault contract address")
 	price0Arg := flag.String("price0", "", "address:price of underlying asset (HONEY), colon delimited")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain Mainnet RPC URL")
+	rpcURLArg := flag.String("rpcurl", "https://berchain-rpc-url", "Berachain Mainnet RPC URL")
 	flag.Parse()
-
-	// Example usage:
-	// go run main.go -address=<TERMMAX_VAULT_ADDRESS> \
-	//                -price0=0x0E4aaF1351de4c0264C5c7056Ef3777b41BD8e03:1.00 \
-	//                -rpcurl=https://rpc.berachain.com/
 
 	missingArgs := []string{}
 	if *addressArg == "" {
@@ -75,12 +70,12 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to initialize TermMaxVaultPriceProvider")
 	}
 
-	lpPrice, err := provider.SharePrice(ctx)
+	lpPrice, err := provider.LPTokenPrice(ctx)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to fetch LP token price")
 	} else {
 		logger.Info().
-			Str("SharePrice (USD)", lpPrice).
+			Str("LPTokenPrice (USD)", lpPrice).
 			Msg("successfully fetched LP token price")
 	}
 
