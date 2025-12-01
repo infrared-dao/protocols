@@ -18,9 +18,9 @@ func main() {
 		Timestamp().
 		Logger()
 
-	addressArg := flag.String("address", "", "TermMax vault contract address")
-	price0Arg := flag.String("price0", "", "address:price of underlying asset (HONEY), colon delimited")
-	rpcURLArg := flag.String("rpcurl", "https://berchain-rpc-url", "Berachain Mainnet RPC URL")
+	addressArg := flag.String("address", "0xd07F1862AE599697CDcd6Fd36dF3C33af25fd782", "TermMax vault contract address")
+	price0Arg := flag.String("price0", "0xFCBD14DC51f0A4d49d5E53C2E0950e0bC26d0Dce:1.0", "address:price of underlying asset (HONEY), colon delimited")
+	rpcURLArg := flag.String("rpcurl", "https://berachain.drpc.org", "Berachain Mainnet RPC URL")
 	flag.Parse()
 
 	missingArgs := []string{}
