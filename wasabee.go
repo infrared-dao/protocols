@@ -197,7 +197,7 @@ func (w *WasabeeLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]P
 // TVLBreakdown returns the breakdown of TVL by underlying tokens.
 // TODO: Implement TVL breakdown for Wasabee protocol
 func (w *WasabeeLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
-	return nil, errors.New("TVLBreakdown not yet implemented for Wasabee")
+	return nil, ErrTVLBreakdownNotImplemented
 }
 
 // Internal Helper methods not able to be called except in this file

@@ -3,7 +3,6 @@ package protocols
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -168,7 +167,7 @@ func (w *BendLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pric
 // TVLBreakdown returns the breakdown of TVL by underlying tokens.
 // TODO: Implement TVL breakdown for Bend protocol
 func (w *BendLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
-	return nil, errors.New("TVLBreakdown not yet implemented for Bend")
+	return nil, ErrTVLBreakdownNotImplemented
 }
 
 ///// Helpers

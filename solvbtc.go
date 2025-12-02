@@ -3,7 +3,6 @@ package protocols
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -154,7 +153,7 @@ func (s *SolvLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pric
 // TVLBreakdown returns the breakdown of TVL by underlying tokens.
 // TODO: Implement TVL breakdown for Solv protocol
 func (s *SolvLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
-	return nil, errors.New("TVLBreakdown not yet implemented for Solv")
+	return nil, ErrTVLBreakdownNotImplemented
 }
 
 ///// Helpers

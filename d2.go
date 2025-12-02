@@ -3,7 +3,6 @@ package protocols
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -168,7 +167,7 @@ func (d2 *D2LPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price
 // TVLBreakdown returns the breakdown of TVL by underlying tokens.
 // TODO: Implement TVL breakdown for D2 protocol
 func (d2 *D2LPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
-	return nil, errors.New("TVLBreakdown not yet implemented for D2")
+	return nil, ErrTVLBreakdownNotImplemented
 }
 
 ///// Helpers

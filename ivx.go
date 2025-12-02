@@ -3,7 +3,6 @@ package protocols
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -154,5 +153,5 @@ func (b *IVXLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price
 // TVLBreakdown returns the breakdown of TVL by underlying tokens.
 // TODO: Implement TVL breakdown for IVX protocol
 func (b *IVXLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
-	return nil, errors.New("TVLBreakdown not yet implemented for IVX")
+	return nil, ErrTVLBreakdownNotImplemented
 }

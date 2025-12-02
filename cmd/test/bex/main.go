@@ -4,9 +4,11 @@ import (
 	"context"
 	"flag"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/shopspring/decimal"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -20,18 +22,28 @@ func main() {
 		Timestamp().
 		Logger()
 
+	examplePricesArg := "0x6969696969696969696969696969696969696969:6.9:18,0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0:18"
+
 	// Command-line arguments
-	contractArg := flag.String("contract", "", "Query Smart contract address")
-	lpTokenArg := flag.String("address", "", "LP Token address")
-	price0Arg := flag.String("price0", "", "address:price of token 0, colon delimited")
-	price1Arg := flag.String("price1", "", "address:price of token 1, colon delimited")
-	rpcURLArg := flag.String("rpcurl", "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID", "Ethereum RPC URL")
+	contractArg := flag.String("contract", "0x4Be03f781C497A489E3cB0287833452cA9B9E80B", "Balancer Vault contract address")
+	lpTokenArg := flag.String("address", "0x2c4a603a2aa5596287a06886862dc29d56dbc354", "LP Token address, ie. bex pool address")
+	pricesArg := flag.String("prices", examplePricesArg, "address:price:decimals, for each token. comma delimited list")
+	rpcURLArg := flag.String("rpcurl", "https://berchain-rpc-url", "Mainnet Berachain RPC URL")
 	flag.Parse()
 
-	// Example call for HONEY-WBERA pool
-	// bex -contract=0x8685CE9Db06D40CBa73e3d09e6868FE476B5dC89 -address=0xd28d852cbcc68dcec922f6d5c7a8185dbaa104b7
-	//     -price0=0x0e4aaf1351de4c0264c5c7056ef3777b41bd8e03:1.0 -price1=0x7507c1dc16935b82698e4c63f2746a2fcf994df8:20.88
-	//     -rpcurl=...
+	// BEX has several different types of pools like weighted pools, stable pools, liq bootstrapping pools, managed pools, etc.
+
+	// WBERA-HONEY weighted pool
+	// bex -contract=0x4Be03f781C497A489E3cB0287833452cA9B9E80B -address=0x2c4a603a2aa5596287a06886862dc29d56dbc354
+	//       -prices=0x6969696969696969696969696969696969696969:6.9:18,0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0:18
+
+	// WBERA-WBTC weighted pool
+	// bex -contract=0x4Be03f781C497A489E3cB0287833452cA9B9E80B -address=0x38fdd999fe8783037db1bbfe465759e312f2d809
+	//       -prices=0x6969696969696969696969696969696969696969:6.9:18,0x0555e30da8f98308edb960aa94c0db47230d2b9c:82172.7:8
+
+	// USDC.e-HONEY composable stable pool
+	// bex -contract=0x4Be03f781C497A489E3cB0287833452cA9B9E80B -address=0xf961a8f6d8c69e7321e78d254ecafbcc3a637621
+	//       -prices=0x549943e04f40284185054145c6e4e9568c1d3241:1.044:6,0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0:18
 
 	// Validate required arguments
 	missingArgs := []string{}
@@ -41,47 +53,41 @@ func main() {
 	if *lpTokenArg == "" {
 		missingArgs = append(missingArgs, "address")
 	}
-	if *price0Arg == "" {
-		missingArgs = append(missingArgs, "price0")
-	}
-	if *price1Arg == "" {
-		missingArgs = append(missingArgs, "price1")
+	if *pricesArg == "" {
+		missingArgs = append(missingArgs, "prices")
 	}
 	if len(missingArgs) > 0 {
 		logger.Fatal().
 			Strs("missingArgs", missingArgs).
-			Str("usage", "go run main.go -address <contract-address> -abipath <path-to-abi> -price0 <price0> -price1 <price1> -rpcurl <rpc-url>").
+			Str("usage", "go run main.go -contract <vault-contract-address> -address <pool-address> -prices <token0:price0:decimals0,...> -rpcurl <rpc-url>").
 			Msg("Missing required arguments")
 	}
 
 	// Parse prices
-	p0data := strings.Split(*price0Arg, ":")
-	if len(p0data) != 2 {
-		logger.Fatal().Msgf("Invalid price0, '%s'", *price0Arg)
+	pdata := strings.Split(*pricesArg, ",")
+	if len(pdata) < 2 {
+		logger.Fatal().Msgf("Invalid or not enough prices, '%s'", *pricesArg)
 	}
-	price0, err := decimal.NewFromString(p0data[1])
-	if err != nil {
-		logger.Fatal().Err(err).Str("price0", *price0Arg).Msg("Invalid price0")
-	}
-	p1data := strings.Split(*price1Arg, ":")
-	if len(p1data) != 2 {
-		logger.Fatal().Msgf("Invalid price1, '%s'", *price1Arg)
-	}
-	price1, err := decimal.NewFromString(p1data[1])
-	if err != nil {
-		logger.Fatal().Err(err).Str("price1", *price1Arg).Msg("Invalid price1")
-	}
-
-	pmap := map[string]protocols.Price{
-		strings.ToLower(p0data[0]): protocols.Price{Decimals: 18, Price: price0},
-		strings.ToLower(p1data[0]): protocols.Price{Decimals: 18, Price: price1},
+	var pmap = make(map[string]protocols.Price)
+	for _, data := range pdata {
+		parts := strings.Split(data, ":")
+		token := strings.ToLower(parts[0])
+		price, err := decimal.NewFromString(parts[1])
+		if err != nil {
+			logger.Fatal().Err(err).Str("price", data).Msg("Invalid price")
+		}
+		decimals, err := strconv.Atoi(parts[2])
+		if err != nil {
+			logger.Fatal().Err(err).Str("decimals", data).Msg("Invalid decimals")
+		}
+		pmap[token] = protocols.Price{Decimals: uint(decimals), Price: price}
 	}
 
 	ctx := context.Background()
 	// Connect to the Ethereum client
 	client, err := ethclient.Dial(*rpcURLArg)
 	if err != nil {
-		logger.Fatal().Err(err).Str("rpcurl", *rpcURLArg).Msg("Failed to connect to Ethereum client")
+		logger.Fatal().Err(err).Str("rpcurl", *rpcURLArg).Msg("Failed to connect to RPC client")
 	}
 
 	// get the LP price provider config
@@ -94,7 +100,7 @@ func main() {
 	// Parse the smart contract addresses
 	address := common.HexToAddress(*lpTokenArg)
 	contract := common.HexToAddress(*contractArg)
-	// Create a new KodiakLPPriceProvider
+	// Create a new BexLPPriceProvider
 	provider := protocols.NewBexLPPriceProvider(contract, address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
@@ -139,4 +145,18 @@ func main() {
 				Msg("token breakdown")
 		}
 	}
+
+	// Test Offchain BEX API for fetching current pool APR
+	stakingTokens := []string{
+		"0x1207c619086a52edef4a4b7af881b5ddd367a919",
+		"0xdd70a5ef7d8cfe5c5134b5f9874b09fb5ce812b4",
+		"0x2461e93d5963c2bb69de499676763e67a63c7ba5",
+		"0x62c030b29a6fef1b32677499e4a1f1852a8808c0",
+	}
+	bexAPRs, err := fetchers.FetchBexAPRs(ctx, stakingTokens)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("bad response from bex API")
+	}
+	logger.Info().
+		Msgf("fetched bex APRs from API %+v", bexAPRs)
 }

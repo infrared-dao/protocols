@@ -3,7 +3,6 @@ package protocols
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -156,7 +155,7 @@ func (p *PendleLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pr
 // TVLBreakdown returns the breakdown of TVL by underlying tokens.
 // TODO: Implement TVL breakdown for Pendle protocol
 func (p *PendleLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
-	return nil, errors.New("TVLBreakdown not yet implemented for Pendle")
+	return nil, ErrTVLBreakdownNotImplemented
 }
 
 // Internal Helper methods not able to be called except in this file

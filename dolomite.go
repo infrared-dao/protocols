@@ -3,7 +3,6 @@ package protocols
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -168,7 +167,7 @@ func (d *DolomiteLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]
 // TVLBreakdown returns the breakdown of TVL by underlying tokens.
 // TODO: Implement TVL breakdown for Dolomite protocol
 func (d *DolomiteLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
-	return nil, errors.New("TVLBreakdown not yet implemented for Dolomite")
+	return nil, ErrTVLBreakdownNotImplemented
 }
 
 // Internal Helper methods not able to be called except in this file

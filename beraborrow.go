@@ -3,7 +3,6 @@ package protocols
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -262,7 +261,7 @@ func (b *BeraBorrowLPPriceProvider) UpdateBlock(block *big.Int, prices map[strin
 // TVLBreakdown returns the breakdown of TVL by underlying tokens.
 // TODO: Implement TVL breakdown for BeraBorrow protocol
 func (b *BeraBorrowLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
-	return nil, errors.New("TVLBreakdown not yet implemented for BeraBorrow")
+	return nil, ErrTVLBreakdownNotImplemented
 }
 
 // Internal Helper methods not able to be called except in this file

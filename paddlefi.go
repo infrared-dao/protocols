@@ -143,5 +143,5 @@ func (a *PaddleFiProvider) UpdateBlock(block *big.Int, prices map[string]Price) 
 // TVLBreakdown returns the breakdown of TVL by underlying tokens.
 // TODO: Implement TVL breakdown for PaddleFi protocol
 func (a *PaddleFiProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
-	return nil, fmt.Errorf("TVLBreakdown not yet implemented for PaddleFi")
+	return nil, ErrTVLBreakdownNotImplemented
 }
