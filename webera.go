@@ -164,6 +164,12 @@ func (w *WeberaLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pr
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for Webera protocol
+func (w *WeberaLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, ErrTVLBreakdownNotImplemented
+}
+
 ///// Helpers
 
 // tvl fetches the TVL from the Webera smart contract.

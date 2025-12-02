@@ -200,6 +200,12 @@ func (d8x *D8xLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pri
 	// prices param can be ignored since d8x uses onchain oracles
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for D8x protocol
+func (d8x *D8xLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, ErrTVLBreakdownNotImplemented
+}
+
 // ABDKToDecimal converts an ABDK fixed point 64.64 number to deicmal.Decimal
 func ABDKToDecimal(xIn *big.Int) (decimal.Decimal, error) {
 	if xIn.Cmp(big.NewInt(0)) == 0 {

@@ -19,46 +19,44 @@ import (
 var _ Protocol = &BexLPPriceProvider{}
 
 type BexPoolConfig struct {
-	Base        string `json:"base"`
-	Quote       string `json:"quote"`
-	IDX         string `json:"idx"`
-	LPTDecimals uint   `json:"lpt_decimals"`
+	PoolID      [32]byte `json:"poolid"`
+	LPTDecimals uint     `json:"lpt_decimals"`
 }
 
 // BexLPPriceProvider defines the provider for BEX LP price and Pool TVL.
 type BexLPPriceProvider struct {
-	queryAddress   common.Address
-	lpTokenAddress common.Address
-	block          *big.Int
-	priceMap       map[string]Price
-	logger         zerolog.Logger
-	configBytes    []byte
-	config         *BexPoolConfig
-	queryContract  *sc.CrocQuery
-	erc20Contract  *sc.ERC20
+	vaultAddress  common.Address
+	poolAddress   common.Address
+	block         *big.Int
+	priceMap      map[string]Price
+	logger        zerolog.Logger
+	configBytes   []byte
+	config        *BexPoolConfig
+	vaultContract *sc.BalancerVault
+	poolContract  *sc.BalancerBasePool
 }
 
 // NewBexLPPriceProvider creates a new instance of the BexLPPriceProvider.
 func NewBexLPPriceProvider(
-	crocqueryAddress common.Address,
-	lpTokenAddress common.Address,
+	vaultAddress common.Address,
+	poolAddress common.Address,
 	block *big.Int,
 	prices map[string]Price,
 	logger zerolog.Logger,
 	config []byte,
 ) *BexLPPriceProvider {
 	b := &BexLPPriceProvider{
-		queryAddress:   crocqueryAddress,
-		lpTokenAddress: lpTokenAddress,
-		block:          block,
-		priceMap:       prices,
-		logger:         logger,
-		configBytes:    config,
+		vaultAddress: vaultAddress,
+		poolAddress:  poolAddress,
+		block:        block,
+		priceMap:     prices,
+		logger:       logger,
+		configBytes:  config,
 	}
 	return b
 }
 
-// Initialize checks the configuration/data and instantiates the CrocQuery and LP Token ERC20, CrocLPERC20 smart contracts.
+// Initialize checks the configuration/data and instantiates the Vault and Base Pool contracts.
 func (b *BexLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
 	var err error
 
@@ -68,44 +66,32 @@ func (b *BexLPPriceProvider) Initialize(ctx context.Context, client *ethclient.C
 		b.logger.Error().Err(err).Msg("failed to deserialize config")
 		return err
 	}
-	_, ok := b.priceMap[b.config.Base]
-	if !ok {
-		err = fmt.Errorf("no price data found for base token (%s)", b.config.Base)
-		b.logger.Error().Msg(err.Error())
-		return err
-	}
-	_, ok = b.priceMap[b.config.Quote]
-	if !ok {
-		err = fmt.Errorf("no price data found for token1 (%s)", b.config.Quote)
-		b.logger.Error().Msg(err.Error())
+
+	b.vaultContract, err = sc.NewBalancerVault(b.vaultAddress, client)
+	if err != nil {
+		b.logger.Error().Err(err).Msg("failed to instantiate Balancer Vault contract")
 		return err
 	}
 
-	b.queryContract, err = sc.NewCrocQuery(b.queryAddress, client)
+	b.poolContract, err = sc.NewBalancerBasePool(b.poolAddress, client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instantiate CrocQuery smart contract")
-		return err
-	}
-
-	b.erc20Contract, err = sc.NewERC20(b.lpTokenAddress, client)
-	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instantiate ERC20 smart contract on LP Token")
+		b.logger.Error().Err(err).Msg("failed to instantiate Balancer Base Pool contract on LP Token")
 		return err
 	}
 	return nil
 }
 
-// LPTokenPrice returns the current price of the protocol's LP token in USD cents (1 USD = 100 cents).
+// LPTokenPrice returns the current price of the protocol's LP token in USD
 func (b *BexLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	opts := &bind.CallOpts{
 		Context:     ctx,
 		BlockNumber: b.block,
 	}
 
-	// Fetch total supply from ERC20 interface
-	totalSupply, err := b.erc20Contract.TotalSupply(opts)
+	// Using GetActualSupply because this is how much is circulating for pools which lock up some LP tokens
+	totalSupply, err := b.poolContract.GetActualSupply(opts)
 	if err != nil {
-		return "", fmt.Errorf("failed to get bex total supply, err: %w", err)
+		return "", err
 	}
 
 	// Avoid division by zero
@@ -139,29 +125,19 @@ func (b *BexLPPriceProvider) TVL(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	b.logger.Debug().
-		Str("totalValue", totalValue.String()).
-		Msg("TVL calculated successfully")
-
 	return totalValue.StringFixed(roundingDecimals), nil
 }
 
-func (b *BexLPPriceProvider) GetConfig(ctx context.Context, address string, client *ethclient.Client) ([]byte, error) {
+func (b *BexLPPriceProvider) GetConfig(ctx context.Context, poolAddress string, client *ethclient.Client) ([]byte, error) {
 	var err error
-	if !common.IsHexAddress(address) {
-		err = fmt.Errorf("invalid smart contract address, '%s'", address)
+	if !common.IsHexAddress(poolAddress) {
+		err = fmt.Errorf("invalid smart contract address, '%s'", poolAddress)
 		return nil, err
 	}
 
-	erc20Contract, err := sc.NewERC20(common.HexToAddress(address), client)
+	poolContract, err := sc.NewBalancerBasePool(common.HexToAddress(poolAddress), client)
 	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instantiate ERC20 smart contract on LP Token")
-		return nil, err
-	}
-
-	crocLPERC20Contract, err := sc.NewCrocLPERC20(common.HexToAddress(address), client)
-	if err != nil {
-		b.logger.Error().Err(err).Msg("failed to instantiate CrocLPERC20 smart contract on LP Token")
+		b.logger.Error().Err(err).Msg("failed to instantiate Balancer Base Pool contract on LP Token")
 		return nil, err
 	}
 
@@ -170,34 +146,18 @@ func (b *BexLPPriceProvider) GetConfig(ctx context.Context, address string, clie
 		Context: ctx,
 	}
 
-	// returns as *big.Int
-	idx, err := crocLPERC20Contract.PoolType(opts)
+	// returns as [32]byte
+	poolID, err := poolContract.GetPoolId(opts)
 	if err != nil {
-		err = fmt.Errorf("failed to obtain pool type idx for bex pool %s, %v", address, err)
+		err = fmt.Errorf("failed to obtain poolID for bex pool %s, %v", poolAddress, err)
 		return nil, err
 	}
-	bpc.IDX = idx.String()
-
-	// base token address
-	addr, err := crocLPERC20Contract.BaseToken(opts)
-	if err != nil {
-		err = fmt.Errorf("failed to obtain base token address for bex pool %s, %v", address, err)
-		return nil, err
-	}
-	bpc.Base = strings.ToLower(addr.Hex())
-
-	// quote token address
-	addr, err = crocLPERC20Contract.QuoteToken(opts)
-	if err != nil {
-		err = fmt.Errorf("failed to obtain base token address for bex pool %s, %v", address, err)
-		return nil, err
-	}
-	bpc.Quote = strings.ToLower(addr.Hex())
+	bpc.PoolID = poolID
 
 	// decimals is uint8
-	decimals, err := erc20Contract.Decimals(opts)
+	decimals, err := poolContract.Decimals(opts)
 	if err != nil {
-		err = fmt.Errorf("failed to obtain number of decimals for LP token %s, %v", address, err)
+		err = fmt.Errorf("failed to obtain number of decimals for LP token %s, %v", poolAddress, err)
 		return nil, err
 	}
 	bpc.LPTDecimals = uint(decimals)
@@ -217,30 +177,86 @@ func (b *BexLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Price
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+func (b *BexLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	balanceData, err := b.getUnderlyingBalances(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	breakdown := make(map[string]TokenTVL, len(balanceData))
+	type tokenData struct {
+		amount   decimal.Decimal
+		usdValue decimal.Decimal
+		price    *Price
+	}
+	tokenCache := make(map[string]tokenData, len(balanceData))
+	totalValue := decimal.Zero
+
+	for token, balance := range balanceData {
+		price, err := b.getPrice(token)
+		if err != nil {
+			return nil, err
+		}
+		balanceDecimal := NormalizeAmount(balance, price.Decimals)
+		usdValue := balanceDecimal.Mul(price.Price)
+
+		tokenCache[token] = tokenData{
+			amount:   balanceDecimal,
+			usdValue: usdValue,
+			price:    price,
+		}
+		totalValue = totalValue.Add(usdValue)
+	}
+
+	// Build breakdown with pre-calculated values
+	for token, data := range tokenCache {
+		// Calculate ratio (handle zero TVL case)
+		var ratio decimal.Decimal
+		if totalValue.IsZero() {
+			ratio = decimal.Zero
+		} else {
+			ratio = data.usdValue.Div(totalValue)
+		}
+
+		breakdown[token] = TokenTVL{
+			TokenAddress: token,
+			TokenSymbol:  data.price.TokenName,
+			Amount:       data.amount,
+			USDValue:     data.usdValue,
+			Ratio:        ratio,
+		}
+	}
+
+	b.logger.Debug().Msg("TVL breakdown calculated successfully")
+
+	return breakdown, nil
+}
+
 // Internal Helper methods not able to be called except in this file
 
 func (b *BexLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
 	var err error
 
-	// Fetch underlying balances
-	amountBase, amountQuote, err := b.getUnderlyingBalances(ctx)
+	// Fetch underlying balances as map[string]*big.Int
+	balanceData, err := b.getUnderlyingBalances(ctx)
 	if err != nil {
 		return decimal.Zero, err
 	}
 
-	priceBase, err := b.getPrice(b.config.Base)
-	if err != nil {
-		return decimal.Zero, err
-	}
-	amountBaseDecimal := NormalizeAmount(amountBase, priceBase.Decimals)
+	b.logger.Debug().
+		Msgf("Token Balances: %+v", balanceData)
 
-	priceQuote, err := b.getPrice(b.config.Quote)
-	if err != nil {
-		return decimal.Zero, err
+	totalValue := decimal.Zero
+	for token, balance := range balanceData {
+		price, err := b.getPrice(token)
+		if err != nil {
+			return decimal.Zero, err
+		}
+		balanceDecimal := NormalizeAmount(balance, price.Decimals)
+		totalValue = totalValue.Add(balanceDecimal.Mul(price.Price))
 	}
-	amountQuoteDecimal := NormalizeAmount(amountQuote, priceQuote.Decimals)
 
-	totalValue := amountBaseDecimal.Mul(priceBase.Price).Add(amountQuoteDecimal.Mul(priceQuote.Price))
 	return totalValue, nil
 }
 
@@ -255,57 +271,39 @@ func (b *BexLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 }
 
 // getUnderlyingBalances fetches the underlying virtual token supply for each token.
-func (b *BexLPPriceProvider) getUnderlyingBalances(ctx context.Context) (*big.Int, *big.Int, error) {
+func (b *BexLPPriceProvider) getUnderlyingBalances(ctx context.Context) (map[string]*big.Int, error) {
 	opts := &bind.CallOpts{
 		Context:     ctx,
 		BlockNumber: b.block,
 	}
 
-	// BEX Pools on CrocSwap do not actually have a fixed supply we can look up
-	// They have multiple different liquidity types but we can compute virtual token supply at a point
-	// 1. Get the price ratio at the current point on swap curve
-	// 2. Get the virtual liquidity at that point on swap curve
-	// 3. Compute the virtual token supplies from ratio and liquidity
-
-	base := common.HexToAddress(b.config.Base)
-	quote := common.HexToAddress(b.config.Quote)
-	poolIdx, ok := new(big.Int).SetString(b.config.IDX, 10)
-	if !ok {
-		return nil, nil, errors.New("unable to parse poolIdx as *big.Int from string")
-	}
-
-	// 1. Get the price ratio at the current point on swap curve
-	// pricePoint is a Q64.Q64 representation of the sqrt of price ratio in a *big.Int
-	pricePoint, err := b.queryContract.QueryPrice(opts, base, quote, poolIdx)
+	/********************************************
+		Returns data of type:
+		struct {
+			Tokens          []common.Address
+			Balances        []*big.Int
+			LastChangeBlock *big.Int
+		}
+	********************************************/
+	poolTokens, err := b.vaultContract.GetPoolTokens(opts, b.config.PoolID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get bex query price of pool, err: %w", err)
+		return nil, fmt.Errorf("failed to get pool tokens and balances from bex, err: %w", err)
 	}
 
-	numerator := decimal.NewFromBigInt(pricePoint, 0)
-	divisor := decimal.NewFromInt(2).Pow(decimal.NewFromInt(64))
-	sqrtRatio := numerator.Div(divisor)
+	var balanceData = make(map[string]*big.Int)
+	for i, tokenAddress := range poolTokens.Tokens {
+		token := strings.ToLower(tokenAddress.Hex())
 
-	// 2. Get the virtual liquidity at that point on swap curve
-	// Liquidity is square root of the product of base pool supply and quote pool supply
-	liquidity, err := b.queryContract.QueryLiquidity(opts, base, quote, poolIdx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get bex pool liquidity, err: %w", err)
-	}
-	b.logger.Debug().Msgf("liquidity is %s", liquidity.String())
-	liquidityDecimal := decimal.NewFromBigInt(liquidity, 0)
+		//verify this is always sound for all pool types
+		if token == strings.ToLower(b.poolAddress.Hex()) {
+			// ignore when some of the LP token is locked in pool itself
+			// this is why should use actualSupply instead of totalSupply
+			continue
+		}
 
-	baseSupplyDecimal := liquidityDecimal.Mul(sqrtRatio)
-	quoteSupplyDecimal := liquidityDecimal.Div(sqrtRatio)
-
-	baseSupply, ok := new(big.Int).SetString(baseSupplyDecimal.Round(0).String(), 10)
-	if !ok {
-		return nil, nil, errors.New("unable to parse baseSupply as *big.Int from string")
-	}
-	quoteSupply, ok := new(big.Int).SetString(quoteSupplyDecimal.Round(0).String(), 10)
-	if !ok {
-		return nil, nil, errors.New("unable to parse baseSupply as *big.Int from string")
+		balance := poolTokens.Balances[i]
+		balanceData[token] = balance
 	}
 
-	b.logger.Debug().Msgf("base and quote supply are %s %s", baseSupply.String(), quoteSupply.String())
-	return baseSupply, quoteSupply, nil
+	return balanceData, nil
 }

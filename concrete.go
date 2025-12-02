@@ -163,6 +163,12 @@ func (c *ConcreteLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for Concrete protocol
+func (c *ConcreteLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, ErrTVLBreakdownNotImplemented
+}
+
 ///// Helpers
 
 // tvl fetches the TVL from the Concrete smart contract.

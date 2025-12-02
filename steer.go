@@ -193,6 +193,12 @@ func (s *SteerLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pri
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for Steer protocol
+func (s *SteerLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, ErrTVLBreakdownNotImplemented
+}
+
 // Internal Helper methods not able to be called except in this file
 
 func (s *SteerLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {

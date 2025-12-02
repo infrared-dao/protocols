@@ -164,6 +164,12 @@ func (e *EulerLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pri
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for Euler protocol
+func (e *EulerLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, ErrTVLBreakdownNotImplemented
+}
+
 ///// Helpers
 
 // tvl fetches the TVL from the Euler smart contract.

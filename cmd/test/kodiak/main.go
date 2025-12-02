@@ -145,6 +145,23 @@ func main() {
 			Msg("successfully fetched TVL")
 	}
 
+	// Fetch TVL Breakdown
+	breakdown, err := provider.TVLBreakdown(ctx)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to fetch TVL breakdown")
+	} else {
+		logger.Info().Msg("successfully fetched TVL breakdown")
+		for tokenAddr, tokenTVL := range breakdown {
+			logger.Info().
+				Str("token", tokenAddr).
+				Str("symbol", tokenTVL.TokenSymbol).
+				Str("amount", tokenTVL.Amount.String()).
+				Str("usdValue", tokenTVL.USDValue.String()).
+				Str("ratio", tokenTVL.Ratio.String()).
+				Msg("token breakdown")
+		}
+	}
+
 	// Test Offchain Kodiak API for fetching average pool APR
 	stakingTokens := []string{
 		"0x98bdeede9a45c28d229285d9d6e9139e9f505391",

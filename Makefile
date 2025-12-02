@@ -22,9 +22,6 @@ build: codegen lint
 	rm -f $(BIN_DIR)/bex
 	go build -o $(BIN_DIR)/bex -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/bex/main.go
-	rm -f $(BIN_DIR)/bexv2
-	go build -o $(BIN_DIR)/bexv2 -v -ldflags \
-		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/bexv2/main.go
 	rm -f $(BIN_DIR)/brownfi
 	go build -o $(BIN_DIR)/brownfi -v -ldflags \
 		"-X main.rev=$(version) -X main.bts=$(timestamp)" cmd/test/brownfi/main.go

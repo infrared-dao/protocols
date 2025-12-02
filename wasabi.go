@@ -164,6 +164,12 @@ func (w *WasabiLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pr
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for Wasabi protocol
+func (w *WasabiLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, ErrTVLBreakdownNotImplemented
+}
+
 // Internal Helper methods not able to be called except in this file
 
 // tvl fetches the TVL from the Wasabi smart contract.

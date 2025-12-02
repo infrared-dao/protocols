@@ -258,6 +258,12 @@ func (b *BeraBorrowLPPriceProvider) UpdateBlock(block *big.Int, prices map[strin
 	// prices param can be ignored because beraborrow uses pricing onchain
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for BeraBorrow protocol
+func (b *BeraBorrowLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, ErrTVLBreakdownNotImplemented
+}
+
 // Internal Helper methods not able to be called except in this file
 
 func (b *BeraBorrowLPPriceProvider) getTotalValue(ctx context.Context) (decimal.Decimal, error) {

@@ -164,6 +164,12 @@ func (w *BendLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]Pric
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for Bend protocol
+func (w *BendLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, ErrTVLBreakdownNotImplemented
+}
+
 ///// Helpers
 
 // tvl fetches the TVL from the Bend smart contract.

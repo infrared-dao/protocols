@@ -194,6 +194,12 @@ func (w *EtherfiLPPriceProvider) UpdateBlock(block *big.Int, prices map[string]P
 	}
 }
 
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for Etherfi protocol
+func (w *EtherfiLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, ErrTVLBreakdownNotImplemented
+}
+
 ///// Helpers
 
 // tvl fetches the TVL from the Etherfi smart contract.
