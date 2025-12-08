@@ -205,7 +205,7 @@ func (t *TermMaxVaultPriceProvider) getPrice(tokenKey string) (*Price, error) {
 func (t *TermMaxVaultPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
 	opts := &bind.CallOpts{
 		Context:     ctx,
-		BlockNumber: t.block,	
+		BlockNumber: t.block,
 	}
 	totalSupply, err := t.contract.TotalSupply(opts)
 	if err != nil {
@@ -213,4 +213,10 @@ func (t *TermMaxVaultPriceProvider) getTotalSupply(ctx context.Context) (*big.In
 		return nil, err
 	}
 	return totalSupply, nil
+}
+
+// TVLBreakdown returns the breakdown of TVL by underlying tokens.
+// TODO: Implement TVL breakdown for TermMax protocol
+func (w *TermMaxVaultPriceProvider) TVLBreakdown(ctx context.Context) (map[string]TokenTVL, error) {
+	return nil, ErrTVLBreakdownNotImplemented
 }
