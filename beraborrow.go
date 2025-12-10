@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -64,7 +63,7 @@ func NewBeraBorrowLPPriceProvider(
 }
 
 // Initialize checks the configuration/data and instantiates the CDP contract.
-func (b *BeraBorrowLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+func (b *BeraBorrowLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
 	var err error
 
 	b.config = &BeraBorrowCDPConfig{}
@@ -139,7 +138,7 @@ func (b *BeraBorrowLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return tvl.StringFixed(roundingDecimals), nil
 }
 
-func (b *BeraBorrowLPPriceProvider) GetConfig(ctx context.Context, lpAddress string, client *ethclient.Client) ([]byte, error) {
+func (b *BeraBorrowLPPriceProvider) GetConfig(ctx context.Context, lpAddress string, client bind.ContractBackend) ([]byte, error) {
 	var err error
 	if !common.IsHexAddress(lpAddress) {
 		err = fmt.Errorf("invalid smart contract address, '%s'", lpAddress)

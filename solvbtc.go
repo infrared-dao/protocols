@@ -7,9 +7,8 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -59,7 +58,7 @@ func NewSolvLPPriceProvider(
 }
 
 // Initialize checks the configuration/data provided and instantiates the Solv smart contract.
-func (s *SolvLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+func (s *SolvLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
 	var err error
 
 	s.config = &SolvConfig{}
@@ -108,14 +107,14 @@ func (s *SolvLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return totalValue.StringFixed(roundingDecimals), nil
 }
 
-func (s *SolvLPPriceProvider) GetConfig(ctx context.Context, address string, ethClient *ethclient.Client) ([]byte, error) {
+func (s *SolvLPPriceProvider) GetConfig(ctx context.Context, address string, client bind.ContractBackend) ([]byte, error) {
 	var err error
 	if !common.IsHexAddress(address) {
 		err = fmt.Errorf("invalid smart contract address, '%s'", address)
 		return nil, err
 	}
 
-	contract, err := sc.NewSolvBTC(common.HexToAddress(address), ethClient)
+	contract, err := sc.NewSolvBTC(common.HexToAddress(address), client)
 	if err != nil {
 		err = fmt.Errorf("failed to instantiate Solv smart contract, %v", err)
 		return nil, err

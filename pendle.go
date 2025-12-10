@@ -11,9 +11,8 @@ import (
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -65,7 +64,7 @@ func NewPendleLPPriceProvider(
 }
 
 // Initialize creates the web client used to make API calls
-func (p *PendleLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+func (p *PendleLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
 	p.config = &PendleConfig{}
 	if err := json.Unmarshal(p.configBytes, p.config); err != nil {
 		return fmt.Errorf("config unmarshal failed: %w", err)
@@ -117,7 +116,7 @@ func (p *PendleLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return tvl.StringFixed(roundingDecimals), nil
 }
 
-func (p *PendleLPPriceProvider) GetConfig(ctx context.Context, address string, client *ethclient.Client) ([]byte, error) {
+func (p *PendleLPPriceProvider) GetConfig(ctx context.Context, address string, client bind.ContractBackend) ([]byte, error) {
 	var err error
 	if !common.IsHexAddress(address) {
 		err = fmt.Errorf("invalid smart contract address, '%s'", address)

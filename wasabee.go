@@ -8,9 +8,8 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -55,7 +54,7 @@ func NewWasabeeLPPriceProvider(
 }
 
 // Initialize checks the configuration/data provided and instantiates the Wasabee smart contract.
-func (w *WasabeeLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+func (w *WasabeeLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
 	var err error
 
 	w.config = &WasabeeConfig{}
@@ -137,7 +136,7 @@ func (w *WasabeeLPPriceProvider) TVL(ctx context.Context) (string, error) {
 }
 
 // GetConfig returns the configuration for the Wasabee adapter.
-func (w *WasabeeLPPriceProvider) GetConfig(ctx context.Context, address string, client *ethclient.Client) ([]byte, error) {
+func (w *WasabeeLPPriceProvider) GetConfig(ctx context.Context, address string, client bind.ContractBackend) ([]byte, error) {
 	var err error
 	if !common.IsHexAddress(address) {
 		err = fmt.Errorf("invalid smart contract address, '%s'", address)
