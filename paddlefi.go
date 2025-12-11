@@ -7,9 +7,8 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	// "github.com/shopspring/decimal"
@@ -50,7 +49,7 @@ func NewPaddleFiProvider(
 	}
 }
 
-func (a *PaddleFiProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+func (a *PaddleFiProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
 	a.config = &PaddleFiConfig{}
 	if err := json.Unmarshal(a.configBytes, a.config); err != nil {
 		return fmt.Errorf("config unmarshal failed: %w", err)
@@ -123,7 +122,7 @@ func (a *PaddleFiProvider) TVL(ctx context.Context) (string, error) {
 	return tvl.StringFixed(6), nil
 }
 
-func (a *PaddleFiProvider) GetConfig(ctx context.Context, poolAddress string, client *ethclient.Client) ([]byte, error) {
+func (a *PaddleFiProvider) GetConfig(ctx context.Context, poolAddress string, client bind.ContractBackend) ([]byte, error) {
 	config := PaddleFiConfig{
 		PaddlefiContract: "0xAE9D7a721534907894eBBFf92b5eEB813c770Ba6",
 		WBERAAddress:     "0x6969696969696969696969696969696969696969",

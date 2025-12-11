@@ -7,9 +7,8 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -57,7 +56,7 @@ func NewD8xLPPriceProvider(
 	return d
 }
 
-func (d8x *D8xLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+func (d8x *D8xLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
 	// extract config
 	err := json.Unmarshal(d8x.configBytes, &d8x.config)
 	if err != nil {
@@ -138,14 +137,14 @@ func (d8x *D8xLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error)
 	return pxUSD.StringFixed(roundingDecimals), nil
 }
 
-func (d8x *D8xLPPriceProvider) GetConfig(ctx context.Context, address string, ethClient *ethclient.Client) ([]byte, error) {
+func (d8x *D8xLPPriceProvider) GetConfig(ctx context.Context, address string, client bind.ContractBackend) ([]byte, error) {
 	var err error
 	if !common.IsHexAddress(address) {
 		err = fmt.Errorf("invalid smart contract address, '%s'", address)
 		return nil, err
 	}
 
-	stContract, err := sc.NewD8xShareToken(common.HexToAddress(address), ethClient)
+	stContract, err := sc.NewD8xShareToken(common.HexToAddress(address), client)
 	if err != nil {
 		err = fmt.Errorf("failed to instantiate D8x share token smart contract, %v", err)
 		return nil, err
@@ -175,7 +174,7 @@ func (d8x *D8xLPPriceProvider) GetConfig(ctx context.Context, address string, et
 	// 2. Get the liquidity pool data from the pool manager and poolID
 	//    Get margin token address and its decimals from liquidity pool
 
-	pmContract, err := sc.NewD8xPoolManager(poolManager, ethClient)
+	pmContract, err := sc.NewD8xPoolManager(poolManager, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate d8x pool manager contract: %v", err)
 	}

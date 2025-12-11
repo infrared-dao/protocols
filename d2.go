@@ -7,9 +7,8 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -52,7 +51,7 @@ func NewD2LPPriceProvider(
 }
 
 // Initialize checks the configuration/data provided and instantiates the D2 vault smart contract.
-func (d2 *D2LPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+func (d2 *D2LPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
 	var err error
 
 	d2.config = &D2Config{}
@@ -117,14 +116,14 @@ func (d2 *D2LPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return totalValue.StringFixed(roundingDecimals), nil
 }
 
-func (d2 *D2LPPriceProvider) GetConfig(ctx context.Context, address string, ethClient *ethclient.Client) ([]byte, error) {
+func (d2 *D2LPPriceProvider) GetConfig(ctx context.Context, address string, client bind.ContractBackend) ([]byte, error) {
 	var err error
 	if !common.IsHexAddress(address) {
 		err = fmt.Errorf("invalid smart contract address, '%s'", address)
 		return nil, err
 	}
 
-	contract, err := sc.NewD2Vault(common.HexToAddress(address), ethClient)
+	contract, err := sc.NewD2Vault(common.HexToAddress(address), client)
 	if err != nil {
 		err = fmt.Errorf("failed to instantiate D2 vault smart contract, %v", err)
 		return nil, err

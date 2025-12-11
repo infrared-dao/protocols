@@ -6,7 +6,7 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/ethclient"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/shopspring/decimal"
 )
 
@@ -18,11 +18,11 @@ const Version = "0.4.0"
 type Protocol interface {
 	// GetConfig returns static configuration data needed for LP token price/TVL calculation.
 	// Returns an error if the configuration cannot be prepared.
-	GetConfig(ctx context.Context, address string, ethClient *ethclient.Client) ([]byte, error)
+	GetConfig(ctx context.Context, address string, client bind.ContractBackend) ([]byte, error)
 
 	// Initialize performs any needed setup for the data structures to call other functions
 	// Returns any error which occurs in setup
-	Initialize(ctx context.Context, client *ethclient.Client) error
+	Initialize(ctx context.Context, client bind.ContractBackend) error
 
 	// LPTokenPrice returns the current price of the protocol's LP token
 	// in USD.

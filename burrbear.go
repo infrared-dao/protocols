@@ -8,9 +8,8 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -61,7 +60,7 @@ func NewBurrBearLPPriceProvider(
 }
 
 // Initialize checks the configuration/data and instantiates the Vault and Base Pool contracts.
-func (bb *BurrBearLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+func (bb *BurrBearLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
 	var err error
 
 	bb.config = &BurrBearPoolConfig{}
@@ -134,7 +133,7 @@ func (bb *BurrBearLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return totalValue.StringFixed(roundingDecimals), nil
 }
 
-func (bb *BurrBearLPPriceProvider) GetConfig(ctx context.Context, poolAddress string, client *ethclient.Client) ([]byte, error) {
+func (bb *BurrBearLPPriceProvider) GetConfig(ctx context.Context, poolAddress string, client bind.ContractBackend) ([]byte, error) {
 	var err error
 	if !common.IsHexAddress(poolAddress) {
 		err = fmt.Errorf("invalid smart contract address, '%s'", poolAddress)

@@ -7,9 +7,8 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -59,7 +58,7 @@ func NewEtherfiLPPriceProvider(
 }
 
 // Initialize checks the configuration/data provided and instantiates the Etherfi smart contract.
-func (e *EtherfiLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+func (e *EtherfiLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
 	var err error
 
 	e.config = &EtherfiConfig{}
@@ -130,7 +129,7 @@ func (e *EtherfiLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return totalValue.StringFixed(roundingDecimals), nil
 }
 
-func (w *EtherfiLPPriceProvider) GetConfig(ctx context.Context, address string, ethClient *ethclient.Client) ([]byte, error) {
+func (w *EtherfiLPPriceProvider) GetConfig(ctx context.Context, address string, client bind.ContractBackend) ([]byte, error) {
 	var err error
 	efc := &EtherfiConfig{}
 	opts := &bind.CallOpts{
@@ -143,7 +142,7 @@ func (w *EtherfiLPPriceProvider) GetConfig(ctx context.Context, address string, 
 			return nil, err
 		}
 
-		contract, err := sc.NewEtherfiAccountant(common.HexToAddress(accountantAddress), ethClient)
+		contract, err := sc.NewEtherfiAccountant(common.HexToAddress(accountantAddress), client)
 		if err != nil {
 			err = fmt.Errorf("failed to instantiate Etherfi smart contract, %v", err)
 			return nil, err

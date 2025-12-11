@@ -10,9 +10,8 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -127,7 +126,7 @@ func NewKodiakLPPriceProvider(
 }
 
 // Initialize checks the configuration/data provided and instantiates the KodiakV1 smart contract.
-func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
 	var err error
 
 	k.config = &KodiakConfig{}
@@ -205,7 +204,7 @@ func (k *KodiakLPPriceProvider) TVL(ctx context.Context) (string, error) {
 	return totalValue.StringFixed(roundingDecimals), nil
 }
 
-func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context, address string, client *ethclient.Client) ([]byte, error) {
+func (k *KodiakLPPriceProvider) GetConfig(ctx context.Context, address string, client bind.ContractBackend) ([]byte, error) {
 	var err error
 	if !common.IsHexAddress(address) {
 		err = fmt.Errorf("invalid smart contract address, '%s'", address)
@@ -400,7 +399,7 @@ func (k *KodiakLPPriceProvider) getBalances(ctx context.Context) (*big.Int, *big
 // Check type of contract and create new connection
 func newKodiakContract(
 	ctx context.Context,
-	client *ethclient.Client,
+	client bind.ContractBackend,
 	address common.Address,
 ) (KodiakContract, error) {
 	contractHash := checkContractCodeHash(ctx, client, address)
@@ -436,7 +435,7 @@ func newKodiakContract(
 // get contract byte code and SHA256 hash it for checks on the contract type against known values
 func checkContractCodeHash(
 	ctx context.Context,
-	client *ethclient.Client,
+	client bind.ContractBackend,
 	address common.Address,
 ) string {
 	bytecode, err := client.CodeAt(ctx, address, nil)

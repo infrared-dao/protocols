@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 )
@@ -48,7 +47,7 @@ func NewIVXLPPriceProvider(
 }
 
 // Initialize checks the configuration/data and instantiates the LP Token ERC20 smart contract.
-func (p *IVXLPPriceProvider) Initialize(ctx context.Context, client *ethclient.Client) error {
+func (p *IVXLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
 	var err error
 
 	p.config = &IVXLPConfig{}
@@ -113,7 +112,7 @@ func (p *IVXLPPriceProvider) TVL(ctx context.Context) (string, error) {
 }
 
 // GetConfig returns the configuration for the IVXLP pool.
-func (p *IVXLPPriceProvider) GetConfig(ctx context.Context, address string, client *ethclient.Client) ([]byte, error) {
+func (p *IVXLPPriceProvider) GetConfig(ctx context.Context, address string, client bind.ContractBackend) ([]byte, error) {
 	if !common.IsHexAddress(address) {
 		return nil, fmt.Errorf("invalid smart contract address, '%s'", address)
 	}
