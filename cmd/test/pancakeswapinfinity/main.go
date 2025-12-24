@@ -69,7 +69,7 @@ func main() {
 	}
 	if len(p0data) >= 4 {
 		var d int
-		fmt.Sscanf(p0data[3], "%d", &d)
+		_, _ = fmt.Sscanf(p0data[3], "%d", &d)
 		decimals0 = uint(d)
 	}
 
@@ -88,7 +88,7 @@ func main() {
 	}
 	if len(p1data) >= 4 {
 		var d int
-		fmt.Sscanf(p1data[3], "%d", &d)
+		_, _ = fmt.Sscanf(p1data[3], "%d", &d)
 		decimals1 = uint(d)
 	}
 
