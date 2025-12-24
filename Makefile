@@ -125,4 +125,3 @@ codegen:
 	abigen --abi assets/abis/stickyvault.abi --pkg sc --type StickyVault --out internal/sc/sticky_vault.go
 	abigen --abi assets/abis/weberavault.abi --pkg sc --type WeberaVault --out internal/sc/webera_vault.go
 	abigen --abi assets/abis/clpoolmanager.abi --pkg sc --type CLPoolManager --out internal/sc/cl_pool_manager.go
-	abigen --abi assets/abis/pancakev3pool.abi --pkg sc --type PancakeV3Pool --out internal/sc/pancake_v3_pool.go

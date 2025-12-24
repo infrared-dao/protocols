@@ -29,7 +29,7 @@ type TermMaxVaultPriceProvider struct {
 	logger      zerolog.Logger
 	configBytes []byte
 	config      *TermMaxVaultConfig
-	contract    *sc.ERC4626Vault
+	contract    *sc.ERC4626
 }
 
 // NewTermMaxVaultPriceProvider creates a new instance of the TermMaxVaultPriceProvider.
@@ -68,7 +68,7 @@ func (t *TermMaxVaultPriceProvider) Initialize(ctx context.Context, client bind.
 		return err
 	}
 
-	t.contract, err = sc.NewERC4626Vault(t.address, client)
+	t.contract, err = sc.NewERC4626(t.address, client)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("failed to instantiate TermMax vault contract")
 		return err
@@ -123,7 +123,7 @@ func (t *TermMaxVaultPriceProvider) GetConfig(ctx context.Context, address strin
 		return nil, err
 	}
 
-	contract, err := sc.NewERC4626Vault(common.HexToAddress(address), client)
+	contract, err := sc.NewERC4626(common.HexToAddress(address), client)
 	if err != nil {
 		err = fmt.Errorf("failed to instantiate TermMax vault contract, %v", err)
 		return nil, err
