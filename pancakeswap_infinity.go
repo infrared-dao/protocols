@@ -17,6 +17,12 @@ import (
 // CLPoolManager contract address on BNB Chain
 const CLPoolManagerAddressBSC = "0xa0FfB9c1CE1Fe56963B0321B32E7A0302114058b"
 
+// WBNB address on BNB Chain - used to map native BNB (zero address) for price lookups
+const WBNBAddressBSC = "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
+
+// zeroAddress represents native token in PancakeSwap Infinity pools
+const zeroAddress = "0x0000000000000000000000000000000000000000"
+
 // Q96 is 2^96, used for sqrtPriceX96 calculations
 var Q96 = new(big.Int).Exp(big.NewInt(2), big.NewInt(96), nil)
 
@@ -157,10 +163,10 @@ func (p *PancakeSwapInfinityLPPriceProvider) GetConfig(ctx context.Context, addr
 	}
 
 	config := PancakeSwapInfinityConfig{
-		PoolId:           address,
-		Token0:           strings.ToLower(poolKey.Currency0.Hex()),
-		Token1:           strings.ToLower(poolKey.Currency1.Hex()),
-		Fee:              uint32(poolKey.Fee.Uint64()),
+		PoolId:            address,
+		Token0:            mapNativeToWrapped(strings.ToLower(poolKey.Currency0.Hex())),
+		Token1:            mapNativeToWrapped(strings.ToLower(poolKey.Currency1.Hex())),
+		Fee:               uint32(poolKey.Fee.Uint64()),
 		CLPoolManagerAddr: CLPoolManagerAddressBSC,
 	}
 
@@ -342,6 +348,14 @@ func (p *PancakeSwapInfinityLPPriceProvider) getVirtualReserves(ctx context.Cont
 		Msg("calculated virtual reserves")
 
 	return amount0, amount1, nil
+}
+
+// mapNativeToWrapped maps the zero address (native BNB) to WBNB for price lookups.
+func mapNativeToWrapped(addr string) string {
+	if addr == zeroAddress {
+		return WBNBAddressBSC
+	}
+	return addr
 }
 
 // hexToBytes32 converts a hex string (with or without 0x prefix) to [32]byte.
