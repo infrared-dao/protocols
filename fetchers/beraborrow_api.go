@@ -2,7 +2,6 @@ package fetchers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -27,29 +26,23 @@ const (
 	roundingDecimals = 8
 )
 
-type beraborrowGraphQLQuery struct {
-	Query string `json:"query"`
-}
-
 type beraborrowResponse struct {
-	Data struct {
-		Pools []struct {
-			ID        string `json:"id"`
-			Pool      string `json:"pool_address"`
-			DebtToken string `json:"debt_token"`
-			Latest    []struct {
-				LastTime  string `json:"lastTime"`
-				LastPrice string `json:"lastPrice"`
-			} `json:"latest"`
-			First []struct {
-				StartTime  string `json:"startTime"`
-				StartPrice string `json:"startPrice"`
-			} `json:"first"`
-		} `json:"sharePools"`
-	} `json:"data"`
+	Pools []struct {
+		ID        string `json:"id"`
+		Pool      string `json:"pool_address"`
+		DebtToken string `json:"debt_token"`
+		Latest    []struct {
+			LastTime  string `json:"lastTime"`
+			LastPrice string `json:"lastPrice"`
+		} `json:"latest"`
+		First []struct {
+			StartTime  string `json:"startTime"`
+			StartPrice string `json:"startPrice"`
+		} `json:"first"`
+	} `json:"sharePools"`
 }
 
-func FetchBeraborrowAPRs(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
+func FetchBeraborrowAPRs(ctx context.Context, client HttpClient, stakingTokens []string) (map[string]decimal.Decimal, error) {
 	if len(stakingTokens) == 0 {
 		return nil, nil
 	}
@@ -82,35 +75,14 @@ func FetchBeraborrowAPRs(ctx context.Context, stakingTokens []string) (map[strin
 	startingPoint := time.Now().Add(time.Duration(-75*24) * time.Hour) // 75 days ago
 	query = fmt.Sprintf(query, startingPoint.Unix())
 
-	requestBody := beraborrowGraphQLQuery{
-		Query: query,
-	}
-
-	requestJSON, err := json.Marshal(requestBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal GraphQL query: %w", err)
-	}
-
-	httpParams := HTTPParams{
-		URL: beraborrowAPI,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-			"Accept":       "application/json",
-		},
-		RequestBody: requestJSON,
-	}
-
-	responseJSON, err := HTTPPost(ctx, httpParams)
+	var results beraborrowResponse
+	err := client.DoGraphQL(ctx, beraborrowAPI, query, nil, &results,
+		WithHeader("Content-Type", "application/json"),
+		WithHeader("Accept", "application/json"))
 	if err != nil {
 		err = fmt.Errorf("failed to fetch Beraborrow pool data, %w", err)
 		log.Error().Msg(err.Error())
 		return nil, err
-	}
-
-	var results beraborrowResponse
-	err = json.Unmarshal(responseJSON, &results)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Beraborrow response: %w", err)
 	}
 
 	beraborrowAPRs := make(map[string]decimal.Decimal)
@@ -126,19 +98,19 @@ func FetchBeraborrowAPRs(ctx context.Context, stakingTokens []string) (map[strin
 		// There should only be 1 share pool
 		// It must match the addresses and IDs associated with sNECT
 		// Both first and last bucket should only have one time and price
-		if len(results.Data.Pools) != 1 ||
-			results.Data.Pools[0].ID != snectID ||
-			strings.ToLower(results.Data.Pools[0].Pool) != snectAddress ||
-			strings.ToLower(results.Data.Pools[0].DebtToken) != nectAddress ||
-			len(results.Data.Pools[0].First) != 1 ||
-			len(results.Data.Pools[0].Latest) != 1 {
+		if len(results.Pools) != 1 ||
+			results.Pools[0].ID != snectID ||
+			strings.ToLower(results.Pools[0].Pool) != snectAddress ||
+			strings.ToLower(results.Pools[0].DebtToken) != nectAddress ||
+			len(results.Pools[0].First) != 1 ||
+			len(results.Pools[0].Latest) != 1 {
 			log.Warn().
 				Msg("response did not match expected format for sNECT")
 			continue
 		}
 
-		firstBucket := results.Data.Pools[0].First[0]
-		lastBucket := results.Data.Pools[0].Latest[0]
+		firstBucket := results.Pools[0].First[0]
+		lastBucket := results.Pools[0].Latest[0]
 
 		// Get start and last time and price for computation
 		startStamp, err := strconv.ParseInt(firstBucket.StartTime, 10, 64)

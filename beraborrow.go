@@ -8,6 +8,7 @@ import (
 
 	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -63,7 +64,7 @@ func NewBeraBorrowLPPriceProvider(
 }
 
 // Initialize checks the configuration/data and instantiates the CDP contract.
-func (b *BeraBorrowLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
+func (b *BeraBorrowLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend, _ fetchers.HttpClient) error {
 	var err error
 
 	b.config = &BeraBorrowCDPConfig{}

@@ -11,14 +11,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
-)
-
-const (
-	// Use appropriate RPC URL for your network
-	DefaultRpcURL = "https://rpc.berachain.com"
 )
 
 func main() {
@@ -27,7 +23,7 @@ func main() {
 
 	// Parse command-line arguments
 	addressArg := flag.String("address", "0xcffbfd665bedb19b47837461a5abf4388c560d35", "Address of Bulla pool")
-	rpcURLArg := flag.String("rpcurl", DefaultRpcURL, "RPC URL for the blockchain")
+	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "RPC URL for the blockchain")
 	price0Arg := flag.String("price0", "1.0", "Price of token0 in USD")
 	price1Arg := flag.String("price1", "1.0", "Price of token1 in USD")
 	flag.Parse()
@@ -103,7 +99,7 @@ func main() {
 	provider := protocols.NewBullaLPPriceProvider(poolAddress, nil, prices, logger, config)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize Bulla adapter")
 	}
@@ -127,7 +123,7 @@ func main() {
 		"0xb5d46214f4ec7f910cb433e412d32ee817986e90",
 		"0xcffbfd665bedb19b47837461a5abf4388c560d35",
 	}
-	bullaAPRs, err := fetchers.FetchBullaAPRs(ctx, stakingTokens)
+	bullaAPRs, err := fetchers.FetchBullaAPRs(ctx, http.NewTestHttpClient(), stakingTokens)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("bad response from gamma API")
 	}

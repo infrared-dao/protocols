@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 )
 
@@ -19,7 +20,7 @@ func main() {
 		Timestamp().
 		Logger()
 
-		// test price conversion
+	// test price conversion
 	err := testPriceConversion()
 	if err != nil {
 		logger.Fatal().Msg(err.Error())
@@ -60,7 +61,7 @@ func main() {
 	// Create a new DolomiteLPPriceProvider
 	provider := protocols.NewD8xLPPriceProvider(address, nil, logger, configBytes)
 
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Initialize failed")
 	}

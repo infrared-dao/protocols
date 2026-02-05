@@ -10,6 +10,7 @@ import (
 
 	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -56,7 +57,7 @@ func NewWinnieSwapLPPriceProvider(
 }
 
 // Initialize checks the configuration/data provided and instantiates the StickyVault smart contract.
-func (w *WinnieSwapLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
+func (w *WinnieSwapLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend, httpClient fetchers.HttpClient) error {
 	var err error
 
 	w.config = &WinnieSwapConfig{}

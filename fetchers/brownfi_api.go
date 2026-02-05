@@ -2,7 +2,6 @@ package fetchers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -14,20 +13,14 @@ const (
 	brownfiAPIBase = "https://bf-v2-api.brownfi.io/indexer"
 )
 
-type brownfiGraphQLQuery struct {
-	Query string `json:"query"`
-}
-
 type brownfiResponse struct {
-	Data struct {
-		Pair struct {
-			APR float64 `json:"apr"`
-			FEE float64 `json:"protocolFee"`
-		} `json:"pair"`
-	} `json:"data"`
+	Pair struct {
+		APR string `json:"apr"`
+		FEE string `json:"protocolFee"`
+	} `json:"pair"`
 }
 
-func FetchBrownfiAPRs(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
+func FetchBrownfiAPRs(ctx context.Context, client HttpClient, stakingTokens []string) (map[string]decimal.Decimal, error) {
 	if len(stakingTokens) == 0 {
 		return nil, nil
 	}
@@ -40,7 +33,7 @@ func FetchBrownfiAPRs(ctx context.Context, stakingTokens []string) (map[string]d
 
 	// Build the GraphQL query
 	query := `{
-		pair(chainId: 80094, address: "%s") {
+		pair(chainId: 80094, id: "%s") {
 			apr,
 			protocolFee
 		}}`
@@ -49,40 +42,31 @@ func FetchBrownfiAPRs(ctx context.Context, stakingTokens []string) (map[string]d
 	brownfiAPRs := make(map[string]decimal.Decimal)
 
 	for _, tokenAddress := range normalizedTokens {
-		requestBody := brownfiGraphQLQuery{
-			Query: fmt.Sprintf(query, tokenAddress),
-		}
+		queryString := fmt.Sprintf(query, tokenAddress)
 
-		requestJSON, err := json.Marshal(requestBody)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal GraphQL query: %w", err)
-		}
-
-		httpParams := HTTPParams{
-			URL: brownfiAPIBase,
-			Headers: map[string]string{
-				"Content-Type": "application/json",
-				"Accept":       "application/json",
-			},
-			RequestBody: requestJSON,
-		}
-
-		responseJSON, err := HTTPPost(ctx, httpParams)
+		var results brownfiResponse
+		err := client.DoGraphQL(ctx, brownfiAPIBase, queryString, nil, &results,
+			WithHeader("Content-Type", "application/json"),
+			WithHeader("Accept", "application/json"))
 		if err != nil {
 			err = fmt.Errorf("failed to fetch brownfi pool data, %w", err)
 			log.Error().Msg(err.Error())
 			return nil, err
 		}
 
-		var results brownfiResponse
-		err = json.Unmarshal(responseJSON, &results)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal brownfi response: %w", err)
-		}
-
 		// base APR = response_apr * (1 - response_fee)
-		apr := decimal.NewFromFloat(results.Data.Pair.APR)
-		fee := decimal.NewFromFloat(results.Data.Pair.FEE)
+		apr, err := decimal.NewFromString(results.Pair.APR)
+		if err != nil {
+			err = fmt.Errorf("failed to parse APR value, %w", err)
+			log.Error().Msg(err.Error())
+			return nil, err
+		}
+		fee, err := decimal.NewFromString(results.Pair.FEE)
+		if err != nil {
+			err = fmt.Errorf("failed to parse protocolFee value, %w", err)
+			log.Error().Msg(err.Error())
+			return nil, err
+		}
 
 		// returns as percentage (15.5% should be 0.155), so divide by 100
 		baseAPR := apr.Div(scalePercent)

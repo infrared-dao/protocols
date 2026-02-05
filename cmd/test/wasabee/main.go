@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -92,7 +93,7 @@ func main() {
 
 	// Initialize the provider
 	provider := protocols.NewWasabeeLPPriceProvider(poolAddress, nil, pmap, logger, configBytes)
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize Wasabee adapter")
 	}
@@ -124,7 +125,7 @@ func main() {
 		"0xac04b1abadf214b57f7ade1dd905ab7acac23a6b", // WBERA-wgBERA
 		"0xec06041013b3a97c58b9ab61eae9079bc594eda3", // WETH-WBERA
 	}
-	wasabeeAPRs, err := fetchers.FetchWasabeeAPRs(ctx, stakingTokens)
+	wasabeeAPRs, err := fetchers.FetchWasabeeAPRs(ctx, http.NewTestHttpClient(), stakingTokens)
 	if err != nil {
 		logger.Warn().Err(err).Msg("failed to fetch APRs from Wasabee API")
 	} else {

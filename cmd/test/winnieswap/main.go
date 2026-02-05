@@ -8,11 +8,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/infrared-dao/protocols"
-	"github.com/infrared-dao/protocols/fetchers"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/http"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -27,7 +27,7 @@ func main() {
 	addressArg := flag.String("address", "0x46fbf6ff1fd62ec89af48c3bb0b63115052dab31", "Smart contract address")
 	price0Arg := flag.String("price0", "0x6969696969696969696969696969696969696969:2.73", "address:price of token 0 (wBERA)")
 	price1Arg := flag.String("price1", "0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0", "address:price of token 1 (HONEY)")
-	rpcURLArg := flag.String("rpcurl", "https://bartio.rpc.berachain.com", "Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain RPC URL")
 	flag.Parse()
 
 	// The WinnieSwap adapter handles StickyVault contracts
@@ -108,7 +108,7 @@ func main() {
 	provider := protocols.NewWinnieSwapLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize WinnieSwapLPPriceProvider")
 	}
@@ -138,7 +138,7 @@ func main() {
 		"0x46fbf6ff1fd62ec89af48c3bb0b63115052dab31", // wBERA-HONEY 0.05%
 		"0x0435c32c79e8341e44047493ba371b502b8c90af", // eWBERA-4-wgBERA 0.05%
 	}
-	winnieswapAPRs, err := fetchers.FetchWinnieSwapAPRs(ctx, stakingTokens)
+	winnieswapAPRs, err := fetchers.FetchWinnieSwapAPRs(ctx, http.NewTestHttpClient(), stakingTokens)
 	if err != nil {
 		logger.Warn().Err(err).Msg("failed to fetch APRs from WinnieSwap API (this is optional)")
 	} else {

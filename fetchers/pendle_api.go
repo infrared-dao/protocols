@@ -2,8 +2,8 @@ package fetchers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -28,7 +28,7 @@ type pendleResponse struct {
 
 // Important: pendle tokens are wrapped so the staking token is the wrapped token
 // Addresses in pools[] must be unwrapped tokens, ie. underlying token to the staking token
-func FetchPendleAPRs(ctx context.Context, pools []string) (map[string]decimal.Decimal, error) {
+func FetchPendleAPRs(ctx context.Context, client HttpClient, pools []string) (map[string]decimal.Decimal, error) {
 	if len(pools) == 0 {
 		return nil, nil
 	}
@@ -36,24 +36,14 @@ func FetchPendleAPRs(ctx context.Context, pools []string) (map[string]decimal.De
 	pendleAPRs := make(map[string]decimal.Decimal)
 	for _, poolAddress := range pools {
 		endpoint := fmt.Sprintf(pendleAPI, strings.ToLower(poolAddress))
-		params := HTTPParams{
-			URL: endpoint,
-			Headers: map[string]string{
-				"Content-Type": "application/json; charset=UTF-8",
-				"Accept":       "application/json",
-			},
-		}
 
-		responseJSON, err := HTTPGet(ctx, params)
+		var results pendleResponse
+		err := client.DoJSON(ctx, http.MethodGet, endpoint, nil, &results,
+			WithHeader("Content-Type", "application/json; charset=UTF-8"),
+			WithHeader("Accept", "application/json"))
 		if err != nil {
 			err = fmt.Errorf("failed to fetch pendle pool data, %w", err)
 			log.Error().Msg(err.Error())
-			return nil, err
-		}
-
-		var results pendleResponse
-		err = json.Unmarshal(responseJSON, &results)
-		if err != nil {
 			return nil, err
 		}
 

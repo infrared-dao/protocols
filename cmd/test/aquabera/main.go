@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/infrared-dao/protocols/fetchers"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -100,7 +101,7 @@ func main() {
 	provider := protocols.NewAquaBeraLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize AquaBeraLPPriceProvider")
 	}
@@ -131,7 +132,7 @@ func main() {
 		"0xf9845a03f7e6b06645a03a28b943c8a4b5fe7bcc",
 	}
 	fetchFunction := fetchers.BuildAquaberaAPRsFetcher(*apiKeyArg)
-	aquaberaAPRs, err := fetchFunction(ctx, stakingTokens)
+	aquaberaAPRs, err := fetchFunction(ctx, http.NewTestHttpClient(), stakingTokens)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("bad response from aquabera API")
 	}

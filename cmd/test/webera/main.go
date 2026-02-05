@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -85,7 +86,7 @@ func main() {
 	provider := protocols.NewWeberaLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize KodiakLPPriceProvider")
 	}
@@ -115,7 +116,7 @@ func main() {
 		"0x396A3D0B799B1a0B1EaA17e75B4DEa412400860b",
 		"0x55a050f76541C2554e9dfA3A0b4e665914bF92EA",
 	}
-	weberaAPRs, err := fetchers.FetchWeberaAPRs(ctx, stakingTokens)
+	weberaAPRs, err := fetchers.FetchWeberaAPRs(ctx, http.NewTestHttpClient(), stakingTokens)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("bad response from webera API")
 	}

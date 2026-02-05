@@ -8,10 +8,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/infrared-dao/protocols"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -125,7 +125,7 @@ func main() {
 	provider := protocols.NewPancakeSwapInfinityLPPriceProvider(common.Address{}, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize PancakeSwapInfinityLPPriceProvider")
 	}
@@ -167,4 +167,3 @@ func main() {
 		}
 	}
 }
-

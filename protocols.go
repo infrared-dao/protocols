@@ -7,6 +7,7 @@ import (
 	"math/big"
 
 	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/shopspring/decimal"
 )
 
@@ -22,7 +23,7 @@ type Protocol interface {
 
 	// Initialize performs any needed setup for the data structures to call other functions
 	// Returns any error which occurs in setup
-	Initialize(ctx context.Context, client bind.ContractBackend) error
+	Initialize(ctx context.Context, client bind.ContractBackend, httpClient fetchers.HttpClient) error
 
 	// LPTokenPrice returns the current price of the protocol's LP token
 	// in USD.

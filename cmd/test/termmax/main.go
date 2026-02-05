@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -20,7 +21,7 @@ func main() {
 
 	addressArg := flag.String("address", "0xd07F1862AE599697CDcd6Fd36dF3C33af25fd782", "TermMax vault contract address")
 	price0Arg := flag.String("price0", "0xFCBD14DC51f0A4d49d5E53C2E0950e0bC26d0Dce:1.0", "address:price of underlying asset (HONEY), colon delimited")
-	rpcURLArg := flag.String("rpcurl", "https://berachain.drpc.org", "Berachain Mainnet RPC URL")
+	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain Mainnet RPC URL")
 	flag.Parse()
 
 	missingArgs := []string{}
@@ -65,7 +66,7 @@ func main() {
 	address := common.HexToAddress(*addressArg)
 	provider := protocols.NewTermMaxVaultPriceProvider(address, nil, pmap, logger, configBytes)
 
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize TermMaxVaultPriceProvider")
 	}

@@ -1,9 +1,7 @@
 package fetchers
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strconv"
@@ -20,25 +18,23 @@ const (
 )
 
 type burrbearResponse struct {
-	Data struct {
-		Rewards []struct {
-			Lps []struct {
-				Apr struct {
-					Max        string `json:"max"`
-					Components []struct {
-						Type  string `json:"type"`
-						Value string `json:"value"`
-					} `json:"components"`
-				} `json:"apr"`
-				Token struct {
-					Address string `json:"address"`
-				} `json:"token"`
-			} `json:"lps"`
-		} `json:"rewards"`
-	} `json:"data"`
+	Rewards []struct {
+		Lps []struct {
+			Apr struct {
+				Max        string `json:"max"`
+				Components []struct {
+					Type  string `json:"type"`
+					Value string `json:"value"`
+				} `json:"components"`
+			} `json:"apr"`
+			Token struct {
+				Address string `json:"address"`
+			} `json:"token"`
+		} `json:"lps"`
+	} `json:"rewards"`
 }
 
-func FetchBurrBearAPRs(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
+func FetchBurrBearAPRs(ctx context.Context, client HttpClient, stakingTokens []string) (map[string]decimal.Decimal, error) {
 	if len(stakingTokens) == 0 {
 		return nil, nil
 	}
@@ -47,33 +43,20 @@ func FetchBurrBearAPRs(ctx context.Context, stakingTokens []string) (map[string]
 		stakingTokens[idx] = strings.ToLower(tokenAddress)
 	}
 
-	jsonQuery := []byte(`{"query": " ` + burrbearQuery + ` "}`)
-	params := HTTPParams{
-		URL: burrbearAPI,
-		Headers: map[string]string{
-			"Content-Type": "application/json; charset=UTF-8",
-			"Accept":       "application/json",
-		},
-		RequestBody: bytes.NewBuffer(jsonQuery).Bytes(),
-	}
-
-	responseJSON, err := HTTPPost(ctx, params)
+	var results burrbearResponse
+	err := client.DoGraphQL(ctx, burrbearAPI, burrbearQuery, nil, &results,
+		WithHeader("Content-Type", "application/json; charset=UTF-8"),
+		WithHeader("Accept", "application/json"))
 	if err != nil {
 		err = fmt.Errorf("failed to fetch burrbear APR data, %w", err)
 		log.Error().Msg(err.Error())
 		return nil, err
 	}
 
-	var results burrbearResponse
-	err = json.Unmarshal(responseJSON, &results)
-	if err != nil {
-		return nil, err
-	}
-
 	scalePercent := decimal.NewFromFloat(100.0)
 	burrbearAPRs := make(map[string]decimal.Decimal)
 
-	for _, rewards := range results.Data.Rewards {
+	for _, rewards := range results.Rewards {
 		for _, aprData := range rewards.Lps {
 			token := strings.ToLower(aprData.Token.Address)
 			for _, apr := range aprData.Apr.Components {

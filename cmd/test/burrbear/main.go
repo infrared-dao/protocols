@@ -7,13 +7,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/infrared-dao/protocols"
-	"github.com/infrared-dao/protocols/fetchers"
-	"github.com/shopspring/decimal"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/http"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
 )
 
 func main() {
@@ -29,7 +29,7 @@ func main() {
 	// Command-line arguments
 	lpTokenArg := flag.String("address", "0xd10e65a5f8ca6f835f2b1832e37cf150fb955f23", "LP Token address, ie. burrbear pool address")
 	pricesArg := flag.String("prices", defaultPricesArg, "address:price:decimals, for each token. comma delimited list")
-	rpcURLArg := flag.String("rpcurl", "https://  berachain-rpc-url", "Mainnet Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// NECT-USDC-HONEY composable stable pool
@@ -94,7 +94,7 @@ func main() {
 	provider := protocols.NewBurrBearLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize BurrBearLPPriceProvider")
 	}
@@ -131,7 +131,7 @@ func main() {
 		"0xd170e25f6bcb5ace2108628c647be47d59900ade",
 		"0x7ce7cb1893cfbd680cbfb9dd2a9ae6a62bde66a8",
 	}
-	burrbearAPRs, err := fetchers.FetchBurrBearAPRs(ctx, stakingTokens)
+	burrbearAPRs, err := fetchers.FetchBurrBearAPRs(ctx, http.NewTestHttpClient(), stakingTokens)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("bad response from burrbear API")
 	}

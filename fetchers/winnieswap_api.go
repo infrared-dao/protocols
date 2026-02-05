@@ -2,7 +2,6 @@ package fetchers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -15,30 +14,24 @@ const (
 	winnieswapAPIBase = "https://sub.winnieswap.com/"
 )
 
-type winnieswapGraphQLQuery struct {
-	Query string `json:"query"`
-}
-
 type winnieswapResponse struct {
-	Data struct {
-		Vaults struct {
-			Items []struct {
-				ID      string `json:"id"`
-				Pool    string `json:"pool"`
-				Name    string `json:"name"`
-				PoolRef struct {
-					PoolDayData struct {
-						Items []struct {
-							APR string `json:"apr"`
-						} `json:"items"`
-					} `json:"poolDayData"`
-				} `json:"poolRef"`
-			} `json:"items"`
-		} `json:"stickyVaults"`
-	} `json:"data"`
+	Vaults struct {
+		Items []struct {
+			ID      string `json:"id"`
+			Pool    string `json:"pool"`
+			Name    string `json:"name"`
+			PoolRef struct {
+				PoolDayData struct {
+					Items []struct {
+						APR string `json:"apr"`
+					} `json:"items"`
+				} `json:"poolDayData"`
+			} `json:"poolRef"`
+		} `json:"items"`
+	} `json:"stickyVaults"`
 }
 
-func FetchWinnieSwapAPRs(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
+func FetchWinnieSwapAPRs(ctx context.Context, client HttpClient, stakingTokens []string) (map[string]decimal.Decimal, error) {
 	if len(stakingTokens) == 0 {
 		return nil, nil
 	}
@@ -66,42 +59,21 @@ func FetchWinnieSwapAPRs(ctx context.Context, stakingTokens []string) (map[strin
 			}  
 		}}`
 
-	requestBody := winnieswapGraphQLQuery{
-		Query: query,
-	}
-
-	requestJSON, err := json.Marshal(requestBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal GraphQL query: %w", err)
-	}
-
-	httpParams := HTTPParams{
-		URL: winnieswapAPIBase,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-			"Accept":       "application/json",
-		},
-		RequestBody: requestJSON,
-	}
-
-	responseJSON, err := HTTPPost(ctx, httpParams)
+	var results winnieswapResponse
+	err := client.DoGraphQL(ctx, winnieswapAPIBase, query, nil, &results,
+		WithHeader("Content-Type", "application/json"),
+		WithHeader("Accept", "application/json"))
 	if err != nil {
 		err = fmt.Errorf("failed to fetch WinnieSwap pool data, %w", err)
 		log.Error().Msg(err.Error())
 		return nil, err
 	}
 
-	var results winnieswapResponse
-	err = json.Unmarshal(responseJSON, &results)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal WinnieSwap response: %w", err)
-	}
-
 	scalePercent := decimal.NewFromFloat(100.0)
 	winnieswapAPRs := make(map[string]decimal.Decimal)
 
 	// Process vaults and match against requested tokens
-	for _, vault := range results.Data.Vaults.Items {
+	for _, vault := range results.Vaults.Items {
 		vaultID := strings.ToLower(vault.ID)
 
 		if !slices.Contains(normalizedTokens, vaultID) {

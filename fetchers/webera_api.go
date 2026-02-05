@@ -2,8 +2,8 @@ package fetchers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -20,7 +20,7 @@ type weberaResponse struct {
 	} `json:"data"`
 }
 
-func FetchWeberaAPRs(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
+func FetchWeberaAPRs(ctx context.Context, client HttpClient, stakingTokens []string) (map[string]decimal.Decimal, error) {
 	if len(stakingTokens) == 0 {
 		return nil, nil
 	}
@@ -29,24 +29,13 @@ func FetchWeberaAPRs(ctx context.Context, stakingTokens []string) (map[string]de
 	for _, tokenAddress := range stakingTokens {
 		tokenAddress = strings.ToLower(tokenAddress)
 
-		params := HTTPParams{
-			URL: weberaAPI + tokenAddress + "/apr",
-			Headers: map[string]string{
-				"Content-Type": "application/json; charset=UTF-8",
-				"Accept":       "application/json",
-			},
-		}
-
-		responseJSON, err := HTTPGet(ctx, params)
+		var results weberaResponse
+		err := client.DoJSON(ctx, http.MethodGet, weberaAPI+tokenAddress+"/apr", nil, &results,
+			WithHeader("Content-Type", "application/json; charset=UTF-8"),
+			WithHeader("Accept", "application/json"))
 		if err != nil {
 			err = fmt.Errorf("failed to fetch webera APR data, %w", err)
 			log.Error().Msg(err.Error())
-			return nil, err
-		}
-
-		var results weberaResponse
-		err = json.Unmarshal(responseJSON, &results)
-		if err != nil {
 			return nil, err
 		}
 
