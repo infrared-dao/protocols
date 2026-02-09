@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
@@ -27,7 +28,7 @@ func main() {
 	addressArg := flag.String("address", "0x98bdeede9a45c28d229285d9d6e9139e9f505391", "Smart contract address")
 	price0Arg := flag.String("price0", "0x18878Df23e2a36f81e820e4b47b4A40576D3159C:26.32", "address:price of token 0")
 	price1Arg := flag.String("price1", "0xFCBD14DC51f0A4d49d5E53C2E0950e0bC26d0Dce:1.0", "address:price of token 1")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Mainnet Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// The kodiak adapter can handle both V3 Island and V2 Pool contracts in address

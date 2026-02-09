@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
@@ -27,7 +28,7 @@ func main() {
 	addressArg := flag.String("address", "0x46fbf6ff1fd62ec89af48c3bb0b63115052dab31", "Smart contract address")
 	price0Arg := flag.String("price0", "0x6969696969696969696969696969696969696969:2.73", "address:price of token 0 (wBERA)")
 	price1Arg := flag.String("price1", "0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0", "address:price of token 1 (HONEY)")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Berachain RPC URL")
 	flag.Parse()
 
 	// The WinnieSwap adapter handles StickyVault contracts

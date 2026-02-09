@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
@@ -21,7 +22,7 @@ func main() {
 
 	// Command-line arguments
 	lpTokenArg := flag.String("address", "0xc2605ed80880bd6b1523d52aef8d624ed468a935", "Wrapped LP Token address, ie. pendle pool address")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Mainnet Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// Pendle iBGT pool

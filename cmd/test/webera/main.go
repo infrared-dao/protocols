@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
@@ -24,7 +25,7 @@ func main() {
 	// Command-line arguments
 	addressArg := flag.String("address", "0x55a050f76541c2554e9dfa3a0b4e665914bf92ea", "Smart contract address (Default wBera Vault)")
 	price0Arg := flag.String("price0", "0x6969696969696969696969696969696969696969:3.687", "address:price of token 0, colon delimited (Bera price)")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain Mainnet RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Berachain Mainnet RPC URL")
 	flag.Parse()
 
 	// WeBera adapter can handle WeBera vaults

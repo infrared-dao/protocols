@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
@@ -21,7 +22,7 @@ func main() {
 
 	// Command-line arguments
 	lpTokenArg := flag.String("address", "0xB318Cd79dC0743De041A26D3F0d467d49955E5bC", "LP Token address, ie. beraborrow infrared wrapper token address")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Berachain RPC URL")
 	flag.Parse()
 
 	// BeraBorrow CDP -- specifically a Compounding Infrared Collateralized Vault

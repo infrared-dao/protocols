@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
@@ -28,7 +29,7 @@ func main() {
 	contractArg := flag.String("contract", "0x4Be03f781C497A489E3cB0287833452cA9B9E80B", "Balancer Vault contract address")
 	lpTokenArg := flag.String("address", "0x2c4a603a2aa5596287a06886862dc29d56dbc354", "LP Token address, ie. bex pool address")
 	pricesArg := flag.String("prices", examplePricesArg, "address:price:decimals, for each token. comma delimited list")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Mainnet Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// BEX has several different types of pools like weighted pools, stable pools, liq bootstrapping pools, managed pools, etc.

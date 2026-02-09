@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -26,7 +27,7 @@ func main() {
 	addressArg := flag.String("address", "0xDB78B4166580917c9604f8DdfBea5F49B493845c", "Smart contract address")
 	price0Arg := flag.String("price0", "0x69f1E971257419B1E9C405A553f252c64A29A30a:5.35", "address:price of token 0")
 	price1Arg := flag.String("price1", "0x978448A7866Aed0146Ad5C5E5d3d8424e2b16356:2.78", "address:price of token 1")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Mainnet Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// The Steer adapter can handle Steer Pool contracts in address

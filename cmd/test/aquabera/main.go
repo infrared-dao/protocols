@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/infrared-dao/protocols"
-	"github.com/infrared-dao/protocols/cmd/test/http"
-	"github.com/infrared-dao/protocols/fetchers"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
+	"github.com/infrared-dao/protocols/cmd/test/http"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -27,7 +27,7 @@ func main() {
 	price0Arg := flag.String("price0", "0x6969696969696969696969696969696969696969:2.58", "address:price of token 0, colon delimited")
 	price1Arg := flag.String("price1", "0x1f7210257fa157227d09449229a9266b0d581337:0.000274", "address:price of token 1, colon delimited")
 	apiKeyArg := flag.String("apikey", "", "A valid aquabera api key for the x-api-key request headers")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com", "Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Berachain RPC URL")
 	flag.Parse()
 
 	// WBERA-BERAMO kodiak LP aquabera pool "AB-KODIAK-WBERA-BERAMO-10000"

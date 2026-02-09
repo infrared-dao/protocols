@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -23,7 +24,7 @@ func main() {
 	// Command-line arguments
 	addressArg := flag.String("address", "0x0F6f337B09cb5131cF0ce9df3Beb295b8e728F3B", "Smart contract address (Default SolvBTC.BERA)")
 	price0Arg := flag.String("price0", "0x541FD749419CA806a8bc7da8ac23D346f2dF8B77:104415.25", "address:price of asset, colon delimited (SolvBTC)")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain Mainnet RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Berachain Mainnet RPC URL")
 	flag.Parse()
 
 	// Solv adapter can handle SolvBTC.BERA which should be 1:1 with SolvBTC we get from oracles

@@ -12,15 +12,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
-)
-
-const (
-	// Use appropriate RPC URL for your network
-	DefaultRpcURL = "https://rpc.berachain.com"
 )
 
 func main() {
@@ -29,7 +25,7 @@ func main() {
 
 	// Parse command-line arguments
 	addressArg := flag.String("address", "0xEC06041013b3a97c58b9ab61eAE9079Bc594EdA3", "Smart contract address of Wasabee pool")
-	rpcURLArg := flag.String("rpcurl", DefaultRpcURL, "RPC URL for the blockchain")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "RPC URL for the blockchain")
 	price0Arg := flag.String("price0", "0x2F6F07CDcf3588944Bf4C42aC74ff24bF56e7590:1474.66", "Price of token0 in USD")
 	price1Arg := flag.String("price1", "0x6969696969696969696969696969696969696969:3.43", "Price of token1 in USD")
 	flag.Parse()

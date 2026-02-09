@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -21,7 +22,7 @@ func main() {
 
 	addressArg := flag.String("address", "0xd07F1862AE599697CDcd6Fd36dF3C33af25fd782", "TermMax vault contract address")
 	price0Arg := flag.String("price0", "0xFCBD14DC51f0A4d49d5E53C2E0950e0bC26d0Dce:1.0", "address:price of underlying asset (HONEY), colon delimited")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain Mainnet RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Berachain Mainnet RPC URL")
 	flag.Parse()
 
 	missingArgs := []string{}

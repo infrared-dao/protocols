@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -23,7 +24,7 @@ func main() {
 	// Command-line arguments
 	addressArg := flag.String("address", "0x46fcd35431f5B371224ACC2e2E91732867B1A77e", "Smart contract address (Default primeLiquidBeraBTC)")
 	price0Arg := flag.String("price0", "0x0555E30da8f98308EdB960aa94C0Db47230d2B9c:104413.52", "address:price of asset, colon delimited")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain Mainnet RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Berachain Mainnet RPC URL")
 	flag.Parse()
 
 	// etherfi adapter can handle etherfi vaults

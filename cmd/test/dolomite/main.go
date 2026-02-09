@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
@@ -24,7 +25,7 @@ func main() {
 	// Command-line arguments
 	addressArg := flag.String("address", "0x7f2b60fdff1494a0e3e060532c9980d7fad0404b", "Smart contract address")
 	price0Arg := flag.String("price0", "0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0", "address:price of asset token")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Mainnet Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// Validate required arguments

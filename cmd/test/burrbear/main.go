@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
@@ -29,7 +30,7 @@ func main() {
 	// Command-line arguments
 	lpTokenArg := flag.String("address", "0xd10e65a5f8ca6f835f2b1832e37cf150fb955f23", "LP Token address, ie. burrbear pool address")
 	pricesArg := flag.String("prices", defaultPricesArg, "address:price:decimals, for each token. comma delimited list")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Mainnet Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// NECT-USDC-HONEY composable stable pool

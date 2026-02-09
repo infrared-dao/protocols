@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
 	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -23,7 +24,7 @@ func main() {
 	// Command-line arguments
 	addressArg := flag.String("address", "0xbe75c8a7e58c7901d2e128dc8d3b6de2481f1f79", "Smart contract address (Default wBera Vault)")
 	price0Arg := flag.String("price0", "0x549943e04f40284185054145c6E4e9568C1D3241:1.0", "address:price of asset, colon delimited")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Mainnet RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Mainnet RPC URL")
 	flag.Parse()
 
 	// D2 finance adapter can handle D2 strategy vaults
