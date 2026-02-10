@@ -1,9 +1,7 @@
 package fetchers
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -29,12 +27,10 @@ type bexPool struct {
 }
 
 type bexResponse struct {
-	Data struct {
-		Pools []bexPool `json:"poolGetPools"`
-	} `json:"data"`
+	Pools []bexPool `json:"poolGetPools"`
 }
 
-func FetchBexAPRs(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
+func FetchBexAPRs(ctx context.Context, client HttpClient, stakingTokens []string) (map[string]decimal.Decimal, error) {
 	if len(stakingTokens) == 0 {
 		return nil, nil
 	}
@@ -47,38 +43,22 @@ func FetchBexAPRs(ctx context.Context, stakingTokens []string) (map[string]decim
 	// Would like to filter by token or address but neither is reliable
 	// Best filter is by ID but would need to get ID from the bex config data
 	// Since there are only about 300 Bex pools just load all and filter in code
-	jsonQuery := []byte(`{"query": "` + bexQuery + `"}`)
-
-	params := HTTPParams{
-		URL: bexAPI,
-		Headers: map[string]string{
-			"Content-Type": "application/json; charset=UTF-8",
-			"Accept":       "application/json",
-		},
-		RequestBody: bytes.NewBuffer(jsonQuery).Bytes(),
-	}
-
-	responseJSON, err := HTTPPost(ctx, params)
-	if err != nil {
-		err = fmt.Errorf("failed to fetch bex APR data, %w", err)
-		log.Error().Msg(err.Error())
-		return nil, err
-	}
-
 	var results bexResponse
-	err = json.Unmarshal(responseJSON, &results)
+	err := client.DoGraphQL(ctx, bexAPI, bexQuery, nil, &results,
+		WithHeader("Content-Type", "application/json; charset=UTF-8"),
+		WithHeader("Accept", "application/json"))
 	if err != nil {
 		return nil, err
 	}
 
 	// log a warning as we get close to page limit but continue processing
-	if len(results.Data.Pools) > 9000 {
+	if len(results.Pools) > 9000 {
 		err = fmt.Errorf("over 9000 bex pools found, approaching limit")
 		log.Error().Msg(err.Error())
 	}
 
 	bexAPRs := make(map[string]decimal.Decimal)
-	for _, poolData := range results.Data.Pools {
+	for _, poolData := range results.Pools {
 		if len(poolData.Dynamic.Items) == 0 {
 			continue
 		}

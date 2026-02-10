@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"net/http"
 	"strings"
 	"time"
 
@@ -44,9 +45,10 @@ type PendleLPPriceProvider struct {
 	logger      zerolog.Logger
 	configBytes []byte
 	config      *PendleConfig
-	params      fetchers.HTTPParams
+	endpoint    string
 	cacheResult PendlePoolCurrentState
 	cacheTime   time.Time
+	httpClient  fetchers.HttpClient
 }
 
 // NewPendleLPPriceProvider creates a new instance of the PendleLPPriceProvider.
@@ -64,21 +66,14 @@ func NewPendleLPPriceProvider(
 }
 
 // Initialize creates the web client used to make API calls
-func (p *PendleLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
+func (p *PendleLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend, httpClient fetchers.HttpClient) error {
 	p.config = &PendleConfig{}
 	if err := json.Unmarshal(p.configBytes, p.config); err != nil {
 		return fmt.Errorf("config unmarshal failed: %w", err)
 	}
 
-	endpoint := fmt.Sprintf(pendleV2API, strings.ToLower(p.config.PoolAddress))
-	params := fetchers.HTTPParams{
-		URL: endpoint,
-		Headers: map[string]string{
-			"Content-Type": "application/json; charset=UTF-8",
-			"Accept":       "application/json",
-		},
-	}
-	p.params = params
+	p.httpClient = httpClient
+	p.endpoint = fmt.Sprintf(pendleV2API, strings.ToLower(p.config.PoolAddress))
 
 	return nil
 }
@@ -178,15 +173,12 @@ func (p *PendleLPPriceProvider) getSupplyAndTVL(ctx context.Context) (decimal.De
 		results = p.cacheResult
 		p.logger.Debug().Msg("Getting value from cache because last call was recent")
 	} else {
-		responseJSON, err := fetchers.HTTPGet(ctx, p.params)
+		err := p.httpClient.DoJSON(ctx, http.MethodGet, p.endpoint, nil, &results,
+			fetchers.WithHeader("Content-Type", "application/json; charset=UTF-8"),
+			fetchers.WithHeader("Accept", "application/json"))
 		if err != nil {
 			err = fmt.Errorf("failed to fetch current Pendle Pool state data, %w", err)
 			p.logger.Error().Err(err).Msg("Unable to HTTP get the API endpoint")
-			return decimal.Zero, decimal.Zero, err
-		}
-
-		err = json.Unmarshal(responseJSON, &results)
-		if err != nil {
 			return decimal.Zero, decimal.Zero, err
 		}
 		p.cacheResult = results

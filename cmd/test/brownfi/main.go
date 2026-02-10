@@ -8,11 +8,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/infrared-dao/protocols"
-	"github.com/infrared-dao/protocols/fetchers"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
+	"github.com/infrared-dao/protocols/cmd/test/http"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -27,7 +28,7 @@ func main() {
 	addressArg := flag.String("address", "0xd932c344e21ef6C3a94971bf4D4cC71304E2a66C", "Smart contract address")
 	price0Arg := flag.String("price0", "0x6969696969696969696969696969696969696969:1.81", "address:price of token 0 (wBERA)")
 	price1Arg := flag.String("price1", "0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce:1.0", "address:price of token 1 (HONEY)")
-	rpcURLArg := flag.String("rpcurl", "https://bartio.rpc.berachain.com", "Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Berachain RPC URL")
 	flag.Parse()
 
 	// The BrownFi adapter handles BrownFiPool contracts
@@ -108,7 +109,7 @@ func main() {
 	provider := protocols.NewBrownFiLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize BrownFiLPPriceProvider")
 	}
@@ -137,7 +138,7 @@ func main() {
 	stakingTokens := []string{
 		"0xd932c344e21ef6c3a94971bf4d4cc71304e2a66c",
 	}
-	brownfiAPRs, err := fetchers.FetchBrownfiAPRs(ctx, stakingTokens)
+	brownfiAPRs, err := fetchers.FetchBrownfiAPRs(ctx, http.NewTestHttpClient(), stakingTokens)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("bad response from brownfi API")
 	}

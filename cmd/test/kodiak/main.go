@@ -8,11 +8,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/infrared-dao/protocols"
-	"github.com/infrared-dao/protocols/fetchers"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
+	"github.com/infrared-dao/protocols/cmd/test/http"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -27,7 +28,7 @@ func main() {
 	addressArg := flag.String("address", "0x98bdeede9a45c28d229285d9d6e9139e9f505391", "Smart contract address")
 	price0Arg := flag.String("price0", "0x18878Df23e2a36f81e820e4b47b4A40576D3159C:26.32", "address:price of token 0")
 	price1Arg := flag.String("price1", "0xFCBD14DC51f0A4d49d5E53C2E0950e0bC26d0Dce:1.0", "address:price of token 1")
-	rpcURLArg := flag.String("rpcurl", "https://berchain-rpc-url", "Mainnet Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// The kodiak adapter can handle both V3 Island and V2 Pool contracts in address
@@ -120,7 +121,7 @@ func main() {
 	provider := protocols.NewKodiakLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize KodiakLPPriceProvider")
 	}
@@ -171,7 +172,7 @@ func main() {
 		"0xc60ea9801b3f1b01da373c05381e6ce8ff94d76f",
 		"0x38920562047280f2f95b7aba7a9eaa8d0ae04a5c",
 	}
-	kodiakAPRs, err := fetchers.FetchKodiakAPRs(ctx, stakingTokens)
+	kodiakAPRs, err := fetchers.FetchKodiakAPRs(ctx, http.NewTestHttpClient(), stakingTokens)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("bad response from kodiak API")
 	}

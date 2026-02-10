@@ -10,6 +10,7 @@ import (
 
 	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -35,6 +36,7 @@ type SteerLPPriceProvider struct {
 	configBytes []byte
 	config      *SteerConfig
 	contract    *sc.SteerPool
+	httpClient  fetchers.HttpClient
 }
 
 // NewSteerLPPriceProvider creates a new instance of the SteerLPPriceProvider.
@@ -56,7 +58,7 @@ func NewSteerLPPriceProvider(
 }
 
 // Initialize checks the configuration/data provided and instantiates the SteerV1 smart contract.
-func (s *SteerLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
+func (s *SteerLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend, httpClient fetchers.HttpClient) error {
 	var err error
 
 	s.config = &SteerConfig{}

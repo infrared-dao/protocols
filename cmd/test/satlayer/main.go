@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -26,7 +28,7 @@ func main() {
 	// Command-line arguments
 	addressArg := flag.String("address", satSolvBTC, "Smart contract address (Default satSolvBTC.BERA)")
 	price0Arg := flag.String("price0", fmt.Sprintf("%s:118805.23", solvBTC), "address:price of asset, colon delimited (SolvBTC)")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain Mainnet RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Berachain Mainnet RPC URL")
 	flag.Parse()
 
 	// satSolvBTC.BERA is 1:1 with SolvBTC, so we proxy satSolvBTC.BERA price through SolvBTC price
@@ -79,7 +81,7 @@ func main() {
 	provider := protocols.NewSatLayerLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize NewSatLayerLPPriceProvider")
 	}

@@ -9,6 +9,7 @@ import (
 
 	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -31,10 +32,10 @@ var _ Protocol = &PancakeSwapInfinityLPPriceProvider{}
 
 // PancakeSwapInfinityConfig defines the configuration for PancakeSwap Infinity CLMM pools.
 type PancakeSwapInfinityConfig struct {
-	PoolId           string `json:"pool_id"`
-	Token0           string `json:"token0"`
-	Token1           string `json:"token1"`
-	Fee              uint32 `json:"fee"`
+	PoolId            string `json:"pool_id"`
+	Token0            string `json:"token0"`
+	Token1            string `json:"token1"`
+	Fee               uint32 `json:"fee"`
 	CLPoolManagerAddr string `json:"cl_pool_manager"`
 }
 
@@ -71,7 +72,7 @@ func NewPancakeSwapInfinityLPPriceProvider(
 }
 
 // Initialize checks the configuration/data provided and instantiates the CLPoolManager contract.
-func (p *PancakeSwapInfinityLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
+func (p *PancakeSwapInfinityLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend, httpClient fetchers.HttpClient) error {
 	var err error
 
 	p.config = &PancakeSwapInfinityConfig{}

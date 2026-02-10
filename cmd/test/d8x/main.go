@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 )
 
@@ -19,7 +21,7 @@ func main() {
 		Timestamp().
 		Logger()
 
-		// test price conversion
+	// test price conversion
 	err := testPriceConversion()
 	if err != nil {
 		logger.Fatal().Msg(err.Error())
@@ -27,7 +29,7 @@ func main() {
 
 	logger.Info().Msg("price conversion successful")
 	addressArg := flag.String("address", "0x26bbc26415c6316890565f5f73017f85ee70b60c", "Smart contract address")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com", "Mainnet Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// Validate required arguments
@@ -60,7 +62,7 @@ func main() {
 	// Create a new DolomiteLPPriceProvider
 	provider := protocols.NewD8xLPPriceProvider(address, nil, logger, configBytes)
 
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Initialize failed")
 	}

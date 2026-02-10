@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -22,7 +24,7 @@ func main() {
 	// Command-line arguments
 	addressArg := flag.String("address", "0x30bba9cd9eb8c95824aa42faa1bb397b07545bc1", "Smart contract address (bend re7 HONEY vault)")
 	price0Arg := flag.String("price0", "0xFCBD14DC51f0A4d49d5E53C2E0950e0bC26d0Dce:1.000", "address:price of token 0, colon delimited (HONEY price)")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain Mainnet RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Berachain Mainnet RPC URL")
 	flag.Parse()
 
 	// Bend adapter can handle Bend vaults
@@ -79,7 +81,7 @@ func main() {
 	provider := protocols.NewBendLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize KodiakLPPriceProvider")
 	}

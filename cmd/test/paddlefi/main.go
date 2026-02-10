@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -19,7 +21,7 @@ func main() {
 
 	lpTokenArg := flag.String("address", "0xe16761787cF9bB0D3fC2E5C726dAe906ce81B102", "Pool contract address")
 	pricesArg := flag.String("prices", "0x6969696969696969696969696969696969696969:2.05:18", "address:price:decimals")
-	rpcURLArg := flag.String("rpcurl", "https://your-rpc-url", "RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "RPC URL")
 	flag.Parse()
 
 	priceMap := make(map[string]protocols.Price)
@@ -45,7 +47,7 @@ func main() {
 
 	addr := common.HexToAddress(*lpTokenArg)
 	adapter = protocols.NewPaddleFiProvider(addr, nil, priceMap, logger, configBytes)
-	if err := adapter.Initialize(ctx, client); err != nil {
+	if err := adapter.Initialize(ctx, client, http.NewTestHttpClient()); err != nil {
 		logger.Fatal().Err(err).Msg("Adapter init failed")
 	}
 

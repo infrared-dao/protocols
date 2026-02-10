@@ -2,8 +2,8 @@ package fetchers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -33,7 +33,7 @@ type kodiakVaultsResponse struct {
 	Count int           `json:"count"`
 }
 
-func FetchKodiakAPRs(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
+func FetchKodiakAPRs(ctx context.Context, client HttpClient, stakingTokens []string) (map[string]decimal.Decimal, error) {
 	if len(stakingTokens) == 0 {
 		return nil, nil
 	}
@@ -52,23 +52,12 @@ func FetchKodiakAPRs(ctx context.Context, stakingTokens []string) (map[string]de
 
 	fullURL := fmt.Sprintf("%s?%s", apiURL, params.Encode())
 
-	httpParams := HTTPParams{
-		URL: fullURL,
-		Headers: map[string]string{
-			"Accept": "application/json",
-		},
-	}
-
-	responseJSON, err := HTTPGet(ctx, httpParams)
+	var results kodiakVaultsResponse
+	err := client.DoJSON(ctx, http.MethodGet, fullURL, nil, &results,
+		WithHeader("Accept", "application/json"))
 	if err != nil {
 		err = fmt.Errorf("failed to fetch kodiak vault data, %w", err)
 		log.Error().Msg(err.Error())
-		return nil, err
-	}
-
-	var results kodiakVaultsResponse
-	err = json.Unmarshal(responseJSON, &results)
-	if err != nil {
 		return nil, err
 	}
 

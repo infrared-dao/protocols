@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/infrared-dao/protocols/fetchers"
 	"math/big"
 	"strings"
 
@@ -56,7 +57,7 @@ func NewD8xLPPriceProvider(
 	return d
 }
 
-func (d8x *D8xLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
+func (d8x *D8xLPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend, _ fetchers.HttpClient) error {
 	// extract config
 	err := json.Unmarshal(d8x.configBytes, &d8x.config)
 	if err != nil {

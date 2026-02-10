@@ -8,10 +8,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/infrared-dao/protocols"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -26,7 +27,7 @@ func main() {
 	poolIdArg := flag.String("poolid", "", "PancakeSwap Infinity Pool ID (bytes32 hex)")
 	price0Arg := flag.String("price0", "", "address:price of token 0")
 	price1Arg := flag.String("price1", "", "address:price of token 1")
-	rpcURLArg := flag.String("rpcurl", "https://bsc-dataseed.binance.org/", "BNB Chain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBSCRPCURL, "BNB Chain RPC URL")
 	flag.Parse()
 
 	// Example usage for $IR token pair on BNB Chain:
@@ -125,7 +126,7 @@ func main() {
 	provider := protocols.NewPancakeSwapInfinityLPPriceProvider(common.Address{}, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize PancakeSwapInfinityLPPriceProvider")
 	}
@@ -167,4 +168,3 @@ func main() {
 		}
 	}
 }
-

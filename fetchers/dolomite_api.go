@@ -2,8 +2,8 @@ package fetchers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -27,7 +27,7 @@ type dolomiteResponse struct {
 }
 
 // Dolomite API has no reference to the actual stake token, only the underlying token
-func FetchDolomiteAPRs(ctx context.Context, underlyingTokens []string) (map[string]decimal.Decimal, error) {
+func FetchDolomiteAPRs(ctx context.Context, client HttpClient, underlyingTokens []string) (map[string]decimal.Decimal, error) {
 	if len(underlyingTokens) == 0 {
 		return nil, nil
 	}
@@ -36,23 +36,12 @@ func FetchDolomiteAPRs(ctx context.Context, underlyingTokens []string) (map[stri
 		underlyingTokens[idx] = strings.ToLower(tokenAddress)
 	}
 
-	params := HTTPParams{
-		URL: dolomiteAPI,
-		Headers: map[string]string{
-			"Accept": "application/json",
-		},
-	}
-
-	responseJSON, err := HTTPGet(ctx, params)
+	var results dolomiteResponse
+	err := client.DoJSON(ctx, http.MethodGet, dolomiteAPI, nil, &results,
+		WithHeader("Accept", "application/json"))
 	if err != nil {
 		err = fmt.Errorf("failed to fetch dolomite interest rate data, %w", err)
 		log.Error().Msg(err.Error())
-		return nil, err
-	}
-
-	var results dolomiteResponse
-	err = json.Unmarshal(responseJSON, &results)
-	if err != nil {
 		return nil, err
 	}
 

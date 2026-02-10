@@ -2,8 +2,8 @@ package fetchers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -26,7 +26,7 @@ type gammaAPR struct {
 	Timestamp string  `json:"lastUpdated"`
 }
 
-func FetchBullaAPRs(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
+func FetchBullaAPRs(ctx context.Context, client HttpClient, stakingTokens []string) (map[string]decimal.Decimal, error) {
 	if len(stakingTokens) == 0 {
 		return nil, nil
 	}
@@ -35,24 +35,13 @@ func FetchBullaAPRs(ctx context.Context, stakingTokens []string) (map[string]dec
 		stakingTokens[idx] = strings.ToLower(tokenAddress)
 	}
 
-	params := HTTPParams{
-		URL: gammaAPI,
-		Headers: map[string]string{
-			"Content-Type": "application/json; charset=UTF-8",
-			"Accept":       "application/json",
-		},
-	}
-
-	responseJSON, err := HTTPGet(ctx, params)
+	var results []gammaAPR
+	err := client.DoJSON(ctx, http.MethodGet, gammaAPI, nil, &results,
+		WithHeader("Content-Type", "application/json; charset=UTF-8"),
+		WithHeader("Accept", "application/json"))
 	if err != nil {
 		err = fmt.Errorf("failed to fetch bulla APR data, %w", err)
 		log.Error().Msg(err.Error())
-		return nil, err
-	}
-
-	var results []gammaAPR
-	err = json.Unmarshal(responseJSON, &results)
-	if err != nil {
 		return nil, err
 	}
 

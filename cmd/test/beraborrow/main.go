@@ -5,11 +5,12 @@ import (
 	"flag"
 	"os"
 
-	"github.com/infrared-dao/protocols"
-	"github.com/infrared-dao/protocols/fetchers"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
+	"github.com/infrared-dao/protocols/cmd/test/http"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 )
 
@@ -21,7 +22,7 @@ func main() {
 
 	// Command-line arguments
 	lpTokenArg := flag.String("address", "0xB318Cd79dC0743De041A26D3F0d467d49955E5bC", "LP Token address, ie. beraborrow infrared wrapper token address")
-	rpcURLArg := flag.String("rpcurl", "https://  mainnet-rpc-url", "Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Berachain RPC URL")
 	flag.Parse()
 
 	// BeraBorrow CDP -- specifically a Compounding Infrared Collateralized Vault
@@ -71,7 +72,7 @@ func main() {
 	provider := protocols.NewBeraBorrowLPPriceProvider(address, blockNumber, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize BeraBorrowLPPriceProvider")
 	}
@@ -103,7 +104,7 @@ func main() {
 		"0x8628e618b66e7cddbe0adc84b96bea3977954507", // bWGBERA
 		"0x6751c09113a83a83a43829fd0b3bc0d7bdbe07bf", // bWBERA
 	}
-	beraborrowAPRs, err := fetchers.FetchBeraborrowAPRs(ctx, stakingTokens)
+	beraborrowAPRs, err := fetchers.FetchBeraborrowAPRs(ctx, http.NewTestHttpClient(), stakingTokens)
 	if err != nil {
 		logger.Warn().Err(err).Msg("failed to fetch APRs from Beraborrow API")
 	} else {

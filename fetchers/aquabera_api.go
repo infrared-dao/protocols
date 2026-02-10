@@ -2,8 +2,8 @@ package fetchers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rs/zerolog/log"
@@ -26,13 +26,13 @@ type aquaberaResponse struct {
 	} `json:"apr"`
 }
 
-func BuildAquaberaAPRsFetcher(apiKey string) func(context.Context, []string) (map[string]decimal.Decimal, error) {
-	return func(ctx context.Context, stakingTokens []string) (map[string]decimal.Decimal, error) {
-		return FetchAquaberaAPRs(ctx, stakingTokens, apiKey)
+func BuildAquaberaAPRsFetcher(apiKey string) func(context.Context, HttpClient, []string) (map[string]decimal.Decimal, error) {
+	return func(ctx context.Context, client HttpClient, stakingTokens []string) (map[string]decimal.Decimal, error) {
+		return FetchAquaberaAPRs(ctx, client, stakingTokens, apiKey)
 	}
 }
 
-func FetchAquaberaAPRs(ctx context.Context, stakingTokens []string, apiKey string) (map[string]decimal.Decimal, error) {
+func FetchAquaberaAPRs(ctx context.Context, client HttpClient, stakingTokens []string, apiKey string) (map[string]decimal.Decimal, error) {
 	if len(stakingTokens) == 0 {
 		return nil, nil
 	}
@@ -47,26 +47,15 @@ func FetchAquaberaAPRs(ctx context.Context, stakingTokens []string, apiKey strin
 		mixedAddressHex := mixedAddress.Address().Hex()
 
 		endpoint := fmt.Sprintf(aquaberaAPI, mixedAddressHex)
-		params := HTTPParams{
-			URL: endpoint,
-			Headers: map[string]string{
-				"Content-Type": "application/json; charset=UTF-8",
-				"Accept":       "application/json",
-				"x-api-key":    apiKey,
-			},
-		}
 
-		responseJSON, err := HTTPGet(ctx, params)
+		var results aquaberaResponse
+		err := client.DoJSON(ctx, http.MethodGet, endpoint, nil, &results,
+			WithHeader("Content-Type", "application/json; charset=UTF-8"),
+			WithHeader("Accept", "application/json"),
+			WithHeader("x-api-key", apiKey))
 		if err != nil {
 			err = fmt.Errorf("failed to fetch aquabera vault data, %w", err)
 			log.Error().Msg(err.Error())
-			continue
-		}
-
-		var results aquaberaResponse
-		err = json.Unmarshal(responseJSON, &results)
-		if err != nil {
-			log.Error().Msg("fetcher unable to parse aquabera response: " + string(responseJSON))
 			continue
 		}
 

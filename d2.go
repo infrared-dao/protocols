@@ -9,6 +9,7 @@ import (
 
 	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -51,7 +52,7 @@ func NewD2LPPriceProvider(
 }
 
 // Initialize checks the configuration/data provided and instantiates the D2 vault smart contract.
-func (d2 *D2LPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend) error {
+func (d2 *D2LPPriceProvider) Initialize(ctx context.Context, client bind.ContractBackend, _ fetchers.HttpClient) error {
 	var err error
 
 	d2.config = &D2Config{}

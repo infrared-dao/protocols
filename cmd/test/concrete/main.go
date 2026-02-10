@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -22,7 +24,7 @@ func main() {
 	// Command-line arguments
 	addressArg := flag.String("address", "0xec577e989c02b294d5b8f4324224a5b63f5beef7", "Smart contract address (Default wBera Vault)")
 	price0Arg := flag.String("price0", "0x6969696969696969696969696969696969696969:3.792", "address:price of token 0, colon delimited (Bera price)")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Ethereum RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Ethereum RPC URL")
 	flag.Parse()
 
 	// Concrete adapter can handle Concrete vaults
@@ -79,7 +81,7 @@ func main() {
 	provider := protocols.NewConcreteLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize KodiakLPPriceProvider")
 	}

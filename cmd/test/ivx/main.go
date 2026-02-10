@@ -8,6 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 )
 
@@ -20,7 +22,7 @@ func main() {
 	// Command-line arguments
 	lpTokenArg := flag.String("address", "0x3b8B155E3C44f07f6EAd507570f4047C8B450A7F", "LP Token address")
 	lpMonitorArg := flag.String("lpmonitor", "0xf30EC2B4363c7957dab4b83B3211a278e280802D", "LP Monitor address")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain Mainnet RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Berachain Mainnet RPC URL")
 	flag.Parse()
 
 	// Validate required arguments
@@ -59,7 +61,7 @@ func main() {
 	provider := protocols.NewIVXLPPriceProvider(lpMonitorAddress, lpTokenAddress, nil, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize IVXLPPriceProvider")
 	}

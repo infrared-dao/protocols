@@ -5,11 +5,12 @@ import (
 	"flag"
 	"os"
 
-	"github.com/infrared-dao/protocols"
-	"github.com/infrared-dao/protocols/fetchers"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
+	"github.com/infrared-dao/protocols/cmd/test/http"
+	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/rs/zerolog"
 )
 
@@ -21,7 +22,7 @@ func main() {
 
 	// Command-line arguments
 	lpTokenArg := flag.String("address", "0xc2605ed80880bd6b1523d52aef8d624ed468a935", "Wrapped LP Token address, ie. pendle pool address")
-	rpcURLArg := flag.String("rpcurl", "https://  berachain-rpc-url", "Mainnet Berachain RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Mainnet Berachain RPC URL")
 	flag.Parse()
 
 	// Pendle iBGT pool
@@ -60,7 +61,7 @@ func main() {
 	provider := protocols.NewPendleLPPriceProvider(address, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize PendleLPPriceProvider")
 	}
@@ -90,7 +91,7 @@ func main() {
 		"0x02293d88656860a840ed457d38f51e3e6bee8461",
 		"0x5200c9900436f649b4659dfc79213837dcccaab1",
 	}
-	pendleAPRs, err := fetchers.FetchPendleAPRs(ctx, pools)
+	pendleAPRs, err := fetchers.FetchPendleAPRs(ctx, http.NewTestHttpClient(), pools)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("bad response from pendle API")
 	}

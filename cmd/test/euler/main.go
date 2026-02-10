@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/infrared-dao/protocols"
+	"github.com/infrared-dao/protocols/cmd/test/constant"
+	"github.com/infrared-dao/protocols/cmd/test/http"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -22,7 +24,7 @@ func main() {
 	// Command-line arguments
 	addressArg := flag.String("address", "0x112B77A77753b092306b1c04Bd70215FeD4e00a1", "Smart contract address (Default eNECT Vault)")
 	price0Arg := flag.String("price0", "0x1cE0a25D13CE4d52071aE7e02Cf1F6606F4C79d3:0.997", "address:price of asset, colon delimited (NECT price)")
-	rpcURLArg := flag.String("rpcurl", "https://rpc.berachain.com/", "Berachain Mainnet RPC URL")
+	rpcURLArg := flag.String("rpcurl", constant.DefaultBerachainRPCURL, "Berachain Mainnet RPC URL")
 	flag.Parse()
 
 	// Euler adapter can handle Euler vaults
@@ -81,7 +83,7 @@ func main() {
 	provider := protocols.NewEulerLPPriceProvider(address, nil, pmap, logger, configBytes)
 
 	// Initialize the provider
-	err = provider.Initialize(ctx, client)
+	err = provider.Initialize(ctx, client, http.NewTestHttpClient())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize KodiakLPPriceProvider")
 	}
