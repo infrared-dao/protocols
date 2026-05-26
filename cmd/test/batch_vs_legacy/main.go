@@ -53,6 +53,20 @@ type testCase struct {
 // comparing path-vs-path, not vs ground truth.
 var addressRE = regexp.MustCompile(`0x[0-9a-fA-F]{40}`)
 
+// countingMC wraps a multicall3 client and counts how many aggregate3
+// invocations it forwards. Used in phases 3 and 4 to verify that the
+// dispatcher emits exactly the expected number of aggregate3 calls per
+// BatchLPTokenPrice (1 per distinct BlockNumber partition).
+type countingMC struct {
+	inner *multicall3.Client
+	calls int
+}
+
+func (c *countingMC) Aggregate3(ctx context.Context, calls []multicall3.Call3, block *big.Int) ([]multicall3.Result3, error) {
+	c.calls++
+	return c.inner.Aggregate3(ctx, calls, block)
+}
+
 // commonBerachainTokens covers tokens that pool-based providers
 // (bex / burrbear) discover at runtime via vault.getPoolTokens — those
 // addresses don't appear in the static config, so regex extraction
@@ -393,13 +407,168 @@ func main() {
 		}
 		fmt.Printf("%-12s | %-30s | %-30s | %-5s | %s\n", r.name, r.batched, multiStr, marker, note)
 	}
-	fmt.Printf("\n%d/%d passed in multi-query batch\n", len(multiResults)-multiFails, len(multiResults))
+	fmt.Printf("\n%d/%d passed in multi-query batch\n\n", len(multiResults)-multiFails, len(multiResults))
 
-	totalFails := fails + multiFails
-	if totalFails > 0 {
-		fmt.Fprintf(os.Stderr, "\n%d FAILED across both phases\n", totalFails)
+	// === Phase 3: multi-block partitioning ===
+	// Submit each healthy vault twice in the same BatchLPTokenPrice call
+	// — once at head, once at head-10. The dispatcher should partition by
+	// BlockNumber and emit exactly 2 aggregate3 calls (one per block).
+	// For each result, compare against an independent single-query
+	// baseline at the same block.
+	olderBlock := new(big.Int).Sub(block, big.NewInt(10))
+	fmt.Printf("Phase 3: multi-block partitioning (head=%d + head-10=%d in one BatchLPTokenPrice call)\n", block.Uint64(), olderBlock.Uint64())
+
+	type mbQuery struct {
+		rowIdx int
+		block  *big.Int
+		label  string
+	}
+	var mbQueries []protocols.BatchPriceQuery
+	var mbMeta []mbQuery
+	for i, r := range rows {
+		if r.provBatch == nil || r.batched == "<both reverted>" {
+			continue
+		}
+		mbQueries = append(mbQueries, protocols.BatchPriceQuery{Provider: r.provBatch, BlockNumber: block})
+		mbMeta = append(mbMeta, mbQuery{rowIdx: i, block: block, label: "head"})
+		mbQueries = append(mbQueries, protocols.BatchPriceQuery{Provider: r.provBatch, BlockNumber: olderBlock})
+		mbMeta = append(mbMeta, mbQuery{rowIdx: i, block: olderBlock, label: "head-10"})
+	}
+
+	cMC := &countingMC{inner: mc}
+	mbResults, err := protocols.BatchLPTokenPrice(ctx, cMC, client, thc, mbQueries)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Phase 3 BatchLPTokenPrice: %v\n", err)
 		os.Exit(2)
 	}
+	mbDispatches := cMC.calls
+	mbPartitionOK := mbDispatches == 2
+	if mbPartitionOK {
+		fmt.Printf("  aggregate3 invocations: %d  (expected 2 — one per block) ✓\n", mbDispatches)
+	} else {
+		fmt.Printf("  aggregate3 invocations: %d  (expected 2 — one per block) ✗\n", mbDispatches)
+	}
+
+	// For each multi-block result, run an independent single-query
+	// BatchLPTokenPrice at that block to get a baseline price, then
+	// compare the multi-block result against it.
+	fmt.Printf("  %-12s | %-7s | %-30s | %-30s | %s\n", "protocol", "block", "baseline (N=1 at block)", "multi-block result", "match")
+	mbFails := 0
+	for i, res := range mbResults {
+		meta := mbMeta[i]
+		r := &rows[meta.rowIdx]
+
+		var multiStr string
+		if res.Err != nil {
+			multiStr = fmt.Sprintf("<err: %v>", res.Err)
+		} else {
+			multiStr = res.Price.StringFixed(8)
+		}
+
+		// Baseline: same provider, same block, but in its own
+		// BatchLPTokenPrice call — bypasses the partitioning logic.
+		baselineRes, baselineErr := protocols.BatchLPTokenPrice(ctx, mc, client, thc, []protocols.BatchPriceQuery{
+			{Provider: r.provBatch, BlockNumber: meta.block},
+		})
+		var baseStr string
+		if baselineErr != nil {
+			baseStr = fmt.Sprintf("<top-err: %v>", baselineErr)
+		} else if baselineRes[0].Err != nil {
+			baseStr = fmt.Sprintf("<err: %v>", baselineRes[0].Err)
+		} else {
+			baseStr = baselineRes[0].Price.StringFixed(8)
+		}
+
+		match := baseStr == multiStr
+		marker := "yes"
+		if !match {
+			marker = "NO"
+			mbFails++
+		}
+		fmt.Printf("  %-12s | %-7s | %-30s | %-30s | %s\n", r.name, meta.label, baseStr, multiStr, marker)
+	}
+	if !mbPartitionOK {
+		mbFails++
+	}
+	fmt.Printf("\n%d/%d passed in multi-block (and partition count %s)\n\n", len(mbResults)-mbFails, len(mbResults), boolMark(mbPartitionOK))
+
+	// === Phase 4: N=100 scale test ===
+	// Duplicate the per-row provider list 5× to get ~100 queries, all at
+	// the same block. Exercises Multicall3 contract gas limits and the
+	// dispatcher's range-tracking under load. We expect exactly 1
+	// aggregate3 call (single partition) and every result to match its
+	// per-vault Phase-1 batched price.
+	const scaleMultiplier = 5
+	fmt.Printf("Phase 4: scale test (N=%d in one BatchLPTokenPrice call, expect 1 aggregate3)\n", len(rows)*scaleMultiplier)
+
+	type scaleQuery struct {
+		rowIdx int
+	}
+	var scaleQueries []protocols.BatchPriceQuery
+	var scaleMeta []scaleQuery
+	for rep := 0; rep < scaleMultiplier; rep++ {
+		for i, r := range rows {
+			if r.provBatch == nil {
+				continue
+			}
+			scaleQueries = append(scaleQueries, protocols.BatchPriceQuery{Provider: r.provBatch, BlockNumber: block})
+			scaleMeta = append(scaleMeta, scaleQuery{rowIdx: i})
+		}
+	}
+
+	cMC2 := &countingMC{inner: mc}
+	scaleResults, err := protocols.BatchLPTokenPrice(ctx, cMC2, client, thc, scaleQueries)
+	scaleFails := 0
+	scalePartitionOK := cMC2.calls == 1
+	if err != nil {
+		fmt.Printf("  BatchLPTokenPrice top-level err: %v\n", err)
+		fmt.Printf("  (likely Multicall3 ran out of gas at this N — note the practical aggregate3 size limit)\n")
+		os.Exit(2)
+	}
+	if scalePartitionOK {
+		fmt.Printf("  aggregate3 invocations: %d  (expected 1 — single partition) ✓\n", cMC2.calls)
+	} else {
+		fmt.Printf("  aggregate3 invocations: %d  (expected 1 — single partition) ✗\n", cMC2.calls)
+		scaleFails++
+	}
+
+	// Spot-check: every Nth query must match its Phase-1 batched result.
+	// Print only mismatches to keep the output readable; emit a count at
+	// the end either way.
+	for i, res := range scaleResults {
+		r := &rows[scaleMeta[i].rowIdx]
+		var got string
+		if res.Err != nil {
+			got = "<reverted>"
+		} else {
+			got = res.Price.StringFixed(8)
+		}
+		// Match definition: same as Phase 2 — revert-symmetric or numerical.
+		var match bool
+		if r.batched == "<both reverted>" {
+			match = res.Err != nil
+		} else {
+			match = res.Err == nil && got == r.batched
+		}
+		if !match {
+			scaleFails++
+			fmt.Printf("  MISMATCH q[%d] %s: Phase-1=%s, scale=%s, err=%v\n", i, r.name, r.batched, got, res.Err)
+		}
+	}
+	fmt.Printf("\n%d/%d passed at scale N=%d\n", len(scaleResults)-scaleFails, len(scaleResults), len(scaleResults))
+
+	totalFails := fails + multiFails + mbFails + scaleFails
+	if totalFails > 0 {
+		fmt.Fprintf(os.Stderr, "\n%d FAILED across all phases\n", totalFails)
+		os.Exit(2)
+	}
+}
+
+func boolMark(ok bool) string {
+	if ok {
+		return "OK"
+	}
+	return "FAILED"
 }
 
 // runCase fetches config from chain, builds the provider, then drives
