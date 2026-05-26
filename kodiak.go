@@ -14,9 +14,16 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
+
+// Compile-time check that KodiakLPPriceProvider satisfies the
+// BatchablePriceProvider extension interface, so a missing PriceReads or
+// ComputePrice method fails to compile rather than silently degrading to
+// the legacy fallback path at runtime.
+var _ BatchablePriceProvider = &KodiakLPPriceProvider{}
 
 const (
 	V2PoolByteCodeSHA256    = "bffda5c9e111fa411890cc93d58cb5c58a14f97bcbfa642efe300c766c4397f6"
@@ -52,6 +59,18 @@ type KodiakContract interface {
 	Token1(opts *bind.CallOpts) (common.Address, error)
 	TotalSupply(opts *bind.CallOpts) (*big.Int, error)
 	GetBalances(opts *bind.CallOpts) (Balances, error)
+
+	// Multicall3 support — each variant packs/unpacks its own balances
+	// method (V2 calls getReserves, V3 calls getUnderlyingBalances, Charm
+	// calls getTotalAmounts0) using its underlying generated-binding ABI.
+
+	// PackBalancesCalldata returns the ABI-encoded calldata for the
+	// variant-specific balances method, suitable for use as a Multicall3
+	// Call3.CallData.
+	PackBalancesCalldata() ([]byte, error)
+	// UnpackBalancesResponse decodes the raw return data from the
+	// variant-specific balances method into the unified Balances type.
+	UnpackBalancesResponse(data []byte) (Balances, error)
 }
 
 // Unify different implementations for getting internal balance amounts
@@ -67,6 +86,39 @@ func (v3 *KodiakV3Island) GetBalances(opts *bind.CallOpts) (Balances, error) {
 	}, nil
 }
 
+func (v3 *KodiakV3Island) PackBalancesCalldata() ([]byte, error) {
+	a, err := sc.KodiakIslandMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("KodiakV3Island: get ABI: %w", err)
+	}
+	return a.Pack("getUnderlyingBalances")
+}
+
+func (v3 *KodiakV3Island) UnpackBalancesResponse(data []byte) (Balances, error) {
+	a, err := sc.KodiakIslandMetaData.GetAbi()
+	if err != nil {
+		return Balances{}, fmt.Errorf("KodiakV3Island: get ABI: %w", err)
+	}
+	out, err := a.Methods["getUnderlyingBalances"].Outputs.Unpack(data)
+	if err != nil {
+		return Balances{}, fmt.Errorf("KodiakV3Island: unpack getUnderlyingBalances: %w", err)
+	}
+	// getUnderlyingBalances returns (amount0Current, amount1Current) plus
+	// additional accumulator fields we don't need; take the first two.
+	if len(out) < 2 {
+		return Balances{}, fmt.Errorf("KodiakV3Island: getUnderlyingBalances returned %d values, want >=2", len(out))
+	}
+	a0, ok := out[0].(*big.Int)
+	if !ok {
+		return Balances{}, fmt.Errorf("KodiakV3Island: amount0Current type %T, want *big.Int", out[0])
+	}
+	a1, ok := out[1].(*big.Int)
+	if !ok {
+		return Balances{}, fmt.Errorf("KodiakV3Island: amount1Current type %T, want *big.Int", out[1])
+	}
+	return Balances{Amount0: a0, Amount1: a1}, nil
+}
+
 func (v2 *KodiakV2Pool) GetBalances(opts *bind.CallOpts) (Balances, error) {
 	balances, err := v2.GetReserves(opts)
 	if err != nil {
@@ -78,6 +130,39 @@ func (v2 *KodiakV2Pool) GetBalances(opts *bind.CallOpts) (Balances, error) {
 	}, nil
 }
 
+func (v2 *KodiakV2Pool) PackBalancesCalldata() ([]byte, error) {
+	a, err := sc.UniswapV2MetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("KodiakV2Pool: get ABI: %w", err)
+	}
+	return a.Pack("getReserves")
+}
+
+func (v2 *KodiakV2Pool) UnpackBalancesResponse(data []byte) (Balances, error) {
+	a, err := sc.UniswapV2MetaData.GetAbi()
+	if err != nil {
+		return Balances{}, fmt.Errorf("KodiakV2Pool: get ABI: %w", err)
+	}
+	out, err := a.Methods["getReserves"].Outputs.Unpack(data)
+	if err != nil {
+		return Balances{}, fmt.Errorf("KodiakV2Pool: unpack getReserves: %w", err)
+	}
+	// getReserves returns (reserve0 uint112, reserve1 uint112,
+	// blockTimestampLast uint32). uint112 unpacks as *big.Int.
+	if len(out) < 2 {
+		return Balances{}, fmt.Errorf("KodiakV2Pool: getReserves returned %d values, want >=2", len(out))
+	}
+	r0, ok := out[0].(*big.Int)
+	if !ok {
+		return Balances{}, fmt.Errorf("KodiakV2Pool: reserve0 type %T, want *big.Int", out[0])
+	}
+	r1, ok := out[1].(*big.Int)
+	if !ok {
+		return Balances{}, fmt.Errorf("KodiakV2Pool: reserve1 type %T, want *big.Int", out[1])
+	}
+	return Balances{Amount0: r0, Amount1: r1}, nil
+}
+
 func (kc *KodiakCharmPool) GetBalances(opts *bind.CallOpts) (Balances, error) {
 	balances, err := kc.GetTotalAmounts0(opts)
 	if err != nil {
@@ -87,6 +172,37 @@ func (kc *KodiakCharmPool) GetBalances(opts *bind.CallOpts) (Balances, error) {
 		Amount0: balances.Total0,
 		Amount1: balances.Total1,
 	}, nil
+}
+
+func (kc *KodiakCharmPool) PackBalancesCalldata() ([]byte, error) {
+	a, err := sc.AlphaProVaultMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("KodiakCharmPool: get ABI: %w", err)
+	}
+	return a.Pack("getTotalAmounts0")
+}
+
+func (kc *KodiakCharmPool) UnpackBalancesResponse(data []byte) (Balances, error) {
+	a, err := sc.AlphaProVaultMetaData.GetAbi()
+	if err != nil {
+		return Balances{}, fmt.Errorf("KodiakCharmPool: get ABI: %w", err)
+	}
+	out, err := a.Methods["getTotalAmounts0"].Outputs.Unpack(data)
+	if err != nil {
+		return Balances{}, fmt.Errorf("KodiakCharmPool: unpack getTotalAmounts0: %w", err)
+	}
+	if len(out) < 2 {
+		return Balances{}, fmt.Errorf("KodiakCharmPool: getTotalAmounts0 returned %d values, want >=2", len(out))
+	}
+	t0, ok := out[0].(*big.Int)
+	if !ok {
+		return Balances{}, fmt.Errorf("KodiakCharmPool: total0 type %T, want *big.Int", out[0])
+	}
+	t1, ok := out[1].(*big.Int)
+	if !ok {
+		return Balances{}, fmt.Errorf("KodiakCharmPool: total1 type %T, want *big.Int", out[1])
+	}
+	return Balances{Amount0: t0, Amount1: t1}, nil
 }
 
 // Define core types for the Kodiak Adapter
@@ -159,7 +275,12 @@ func (k *KodiakLPPriceProvider) Initialize(ctx context.Context, client bind.Cont
 	return nil
 }
 
-// LPTokenPrice returns the current price of LP token in USD
+// LPTokenPrice returns the current price of LP token in USD.
+//
+// Legacy path — issues two sequential eth_calls (totalSupply + balances).
+// New batchable path (PriceReads + ComputePrice) is preferred when the
+// caller supports it; both paths share computeLPPriceFromReads so prices
+// match exactly between paths for the same inputs.
 func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	// Fetch total supply
 	totalSupply, err := k.getTotalSupply(ctx)
@@ -167,17 +288,84 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 		return "", err
 	}
 
-	// Avoid division by zero
-	if totalSupply.Sign() == 0 {
-		err := errors.New("totalSupply is zero, cannot calculate LP token price")
-		k.logger.Error().Err(err).Msg("Invalid totalSupply")
-		return "", err
-	}
-
-	totalValue, err := k.totalValue(ctx)
+	// Fetch balances
+	amount0, amount1, err := k.getBalances(ctx)
 	if err != nil {
 		return "", err
 	}
+
+	price, err := k.computeLPPriceFromReads(totalSupply, Balances{Amount0: amount0, Amount1: amount1})
+	if err != nil {
+		return "", err
+	}
+	return price.StringFixed(roundingDecimals), nil
+}
+
+// PriceReads describes the two eth_calls needed to compute the LP token
+// price: totalSupply (standard ERC20) + the variant-specific balances
+// method. Returned in fixed order so ComputePrice can index by position.
+func (k *KodiakLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	totalSupplyData, err := kodiakTotalSupplyCalldata()
+	if err != nil {
+		return nil, fmt.Errorf("kodiak: pack totalSupply: %w", err)
+	}
+	balancesData, err := k.contract.PackBalancesCalldata()
+	if err != nil {
+		return nil, fmt.Errorf("kodiak: pack balances: %w", err)
+	}
+	return []multicall3.Call3{
+		{Target: k.address, AllowFailure: false, CallData: totalSupplyData},
+		{Target: k.address, AllowFailure: false, CallData: balancesData},
+	}, nil
+}
+
+// ComputePrice decodes the responses from PriceReads (in the same order)
+// and computes the LP token price. Pure compute — no network I/O.
+func (k *KodiakLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 2 {
+		return decimal.Zero, fmt.Errorf("kodiak: expected 2 responses, got %d", len(responses))
+	}
+	if !responses[0].Success {
+		return decimal.Zero, errors.New("kodiak: totalSupply call reverted in multicall")
+	}
+	if !responses[1].Success {
+		return decimal.Zero, errors.New("kodiak: balances call reverted in multicall")
+	}
+
+	totalSupply, err := unpackKodiakTotalSupply(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("kodiak: unpack totalSupply: %w", err)
+	}
+	balances, err := k.contract.UnpackBalancesResponse(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("kodiak: unpack balances: %w", err)
+	}
+
+	return k.computeLPPriceFromReads(totalSupply, balances)
+}
+
+// computeLPPriceFromReads is the shared math between the legacy
+// LPTokenPrice and the new batchable ComputePrice paths. Pure: takes the
+// raw read values and config/prices, returns the LP token price.
+func (k *KodiakLPPriceProvider) computeLPPriceFromReads(totalSupply *big.Int, balances Balances) (decimal.Decimal, error) {
+	if totalSupply.Sign() == 0 {
+		err := errors.New("totalSupply is zero, cannot calculate LP token price")
+		k.logger.Error().Err(err).Msg("Invalid totalSupply")
+		return decimal.Zero, err
+	}
+
+	price0, err := k.getPrice(k.config.Token0)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	price1, err := k.getPrice(k.config.Token1)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	amount0Decimal := NormalizeAmount(balances.Amount0, price0.Decimals)
+	amount1Decimal := NormalizeAmount(balances.Amount1, price1.Decimals)
+	totalValue := amount0Decimal.Mul(price0.Price).Add(amount1Decimal.Mul(price1.Price))
 
 	totalSupplyDecimal := NormalizeAmount(totalSupply, k.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
@@ -188,7 +376,38 @@ func (k *KodiakLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 		Str("pricePerToken", pricePerToken.String()).
 		Msg("LP token price calculated successfully")
 
-	return pricePerToken.StringFixed(roundingDecimals), nil
+	return pricePerToken, nil
+}
+
+// kodiakTotalSupplyCalldata returns the ABI-encoded calldata for ERC20
+// totalSupply(). Standard signature shared by every KodiakContract variant.
+func kodiakTotalSupplyCalldata() ([]byte, error) {
+	a, err := sc.KodiakIslandMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+	return a.Pack("totalSupply")
+}
+
+// unpackKodiakTotalSupply decodes a totalSupply response into *big.Int.
+// Standard ERC20 return shape; reused across all KodiakContract variants.
+func unpackKodiakTotalSupply(data []byte) (*big.Int, error) {
+	a, err := sc.KodiakIslandMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+	out, err := a.Methods["totalSupply"].Outputs.Unpack(data)
+	if err != nil {
+		return nil, err
+	}
+	if len(out) != 1 {
+		return nil, fmt.Errorf("totalSupply returned %d values, want 1", len(out))
+	}
+	v, ok := out[0].(*big.Int)
+	if !ok {
+		return nil, fmt.Errorf("totalSupply value type %T, want *big.Int", out[0])
+	}
+	return v, nil
 }
 
 // TVL returns the Total Value Locked in the pool/island as USD
@@ -330,6 +549,9 @@ func (k *KodiakLPPriceProvider) TVLBreakdown(ctx context.Context) (map[string]To
 
 // Internal Helper methods not able to be called except in this file
 
+// totalValue is the legacy USD-value helper used by TVL() and TVLBreakdown().
+// LPTokenPrice now uses computeLPPriceFromReads directly so legacy and
+// batchable paths share identical math.
 func (k *KodiakLPPriceProvider) totalValue(ctx context.Context) (decimal.Decimal, error) {
 	var err error
 
