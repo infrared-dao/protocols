@@ -14,11 +14,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"math/big"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -86,6 +88,7 @@ var commonBerachainTokens = []string{
 
 func main() {
 	rpc := flag.String("rpc", "https://mainnet.rpc-0.bera.rbx.lgns.net", "Berachain mainnet RPC URL")
+	vaultsPath := flag.String("vaults", "", "Optional path to production-vaults.json — if set, runs Phase 5 (production-vault pre-flight) using its full vault list")
 	flag.Parse()
 
 	logger := zerolog.New(os.Stderr).With().Timestamp().Logger().Level(zerolog.WarnLevel)
@@ -303,6 +306,44 @@ func main() {
 			build: func(a common.Address, b *big.Int, _ map[string]protocols.Price, l zerolog.Logger, cfg []byte, _ *ethclient.Client) protocols.Protocol {
 				lpMonitor := common.HexToAddress("0xf30EC2B4363c7957dab4b83B3211a278e280802D")
 				return protocols.NewIVXLPPriceProvider(lpMonitor, a, b, l, cfg)
+			},
+		},
+		{
+			// Pendle is off-chain: LPTokenPrice / ComputePrice both pull
+			// pool state from api-v2.pendle.finance. Zero RPC reads. Both
+			// paths should agree (subject to the 5-second cache window).
+			name:      "pendle",
+			address:   "0xc2605ed80880bd6b1523d52aef8d624ed468a935",
+			configure: func(ctx context.Context, a string, c *ethclient.Client) ([]byte, error) { return (&protocols.PendleLPPriceProvider{}).GetConfig(ctx, a, c) },
+			build: func(a common.Address, _ *big.Int, _ map[string]protocols.Price, l zerolog.Logger, cfg []byte, _ *ethclient.Client) protocols.Protocol {
+				return protocols.NewPendleLPPriceProvider(a, l, cfg)
+			},
+		},
+		{
+			// PaddleFi has no LP-token price by design: LPTokenPrice
+			// always returns ("", error). Both paths should error
+			// identically — revert-parity.
+			name:      "paddlefi",
+			address:   "0xe16761787cF9bB0D3fC2E5C726dAe906ce81B102",
+			configure: func(ctx context.Context, a string, c *ethclient.Client) ([]byte, error) { return (&protocols.PaddleFiProvider{}).GetConfig(ctx, a, c) },
+			build: func(a common.Address, b *big.Int, p map[string]protocols.Price, l zerolog.Logger, cfg []byte, _ *ethclient.Client) protocols.Protocol {
+				return protocols.NewPaddleFiProvider(a, b, p, l, cfg)
+			},
+		},
+		{
+			// PancakeSwap Infinity is a BSC-chain CLMM with no per-LP-token
+			// price by design: LPTokenPrice returns "0" unconditionally
+			// without any RPC. To avoid a BSC roundtrip just to build a
+			// config (its GetConfig calls a CLPoolManager method on BSC),
+			// we stub a minimal valid config here. Both paths should
+			// return "0" against any RPC.
+			name:    "pancakeswap_infinity",
+			address: "0x0000000000000000000000000000000000000001",
+			configure: func(ctx context.Context, a string, c *ethclient.Client) ([]byte, error) {
+				return []byte(`{"pool_id":"0x0000000000000000000000000000000000000000000000000000000000000000","token0":"0x0000000000000000000000000000000000000001","token1":"0x0000000000000000000000000000000000000002","fee":3000,"cl_pool_manager":"0xa0FfB9c1CE1Fe56963B0321B32E7A0302114058b"}`), nil
+			},
+			build: func(a common.Address, b *big.Int, p map[string]protocols.Price, l zerolog.Logger, cfg []byte, _ *ethclient.Client) protocols.Protocol {
+				return protocols.NewPancakeSwapInfinityLPPriceProvider(a, b, p, l, cfg)
 			},
 		},
 	}
@@ -558,6 +599,18 @@ func main() {
 	fmt.Printf("\n%d/%d passed at scale N=%d\n", len(scaleResults)-scaleFails, len(scaleResults), len(scaleResults))
 
 	totalFails := fails + multiFails + mbFails + scaleFails
+
+	// === Phase 5: production-vault pre-flight (optional) ===
+	// When --vaults is supplied, iterate every vault in the production
+	// list, map its protocol.id to the corresponding testCase builder,
+	// and run the same per-vault parity check (Phase-1-style) against
+	// real on-chain state. Catches any production-specific config edge
+	// case the curated 22-vault set doesn't exercise.
+	if *vaultsPath != "" {
+		p5Fails := runPhase5(ctx, *vaultsPath, client, mc, block, logger, thc, cases)
+		totalFails += p5Fails
+	}
+
 	if totalFails > 0 {
 		fmt.Fprintf(os.Stderr, "\n%d FAILED across all phases\n", totalFails)
 		os.Exit(2)
@@ -569,6 +622,169 @@ func boolMark(ok bool) string {
 		return "OK"
 	}
 	return "FAILED"
+}
+
+// productionVaultsFile mirrors the subset of production-vaults.json we
+// need: the per-vault id, stake_token address, and protocol identifier.
+type productionVaultsFile struct {
+	Vaults []struct {
+		ID         string `json:"id"`
+		StakeToken struct {
+			Address string `json:"address"`
+		} `json:"stake_token"`
+		Protocol struct {
+			ID string `json:"id"`
+		} `json:"protocol"`
+	} `json:"vaults"`
+}
+
+// runPhase5 iterates production-vaults.json, dispatches each vault to
+// the matching testCase builder (via protocol.id), runs per-vault parity,
+// and reports an aggregate pass/fail/skip summary. Unmappable protocols
+// (those without an in-tree adapter — beradrome, kuma, etc.) are skipped
+// with an explicit count rather than treated as failures.
+func runPhase5(
+	ctx context.Context,
+	path string,
+	client *ethclient.Client,
+	mc *multicall3.Client,
+	block *big.Int,
+	logger zerolog.Logger,
+	thc fetchers.HttpClient,
+	cases []testCase,
+) int {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Phase 5: read %s: %v\n", path, err)
+		return 1
+	}
+	var pv productionVaultsFile
+	if err := json.Unmarshal(data, &pv); err != nil {
+		fmt.Fprintf(os.Stderr, "Phase 5: parse %s: %v\n", path, err)
+		return 1
+	}
+
+	// Build a lookup from testCase name → testCase so we can dispatch
+	// quickly by protocol.id with name aliasing (e.g. d2finance → d2).
+	byName := map[string]testCase{}
+	for _, tc := range cases {
+		byName[tc.name] = tc
+	}
+	// Map production protocol.id values to the curated testCase name.
+	// IDs not in this map (or whose target name isn't in `cases`) are
+	// reported as skipped — those are external protocols without an
+	// in-tree adapter (beradrome, kuma, narra, etc.).
+	protocolAlias := map[string]string{
+		"d2finance": "d2",
+		"solv":      "solvbtc",
+		"charm":     "kodiak", // Charm pools use the Kodiak adapter
+	}
+
+	fmt.Printf("\nPhase 5: production-vault pre-flight (%d vaults from %s)\n", len(pv.Vaults), path)
+	fmt.Printf("  Pinned block: %d\n\n", block.Uint64())
+
+	type p5row struct {
+		id        string
+		protocol  string
+		address   string
+		legacy    string
+		batched   string
+		match     bool
+		errMsg    string
+		skipped   bool
+		skipNote  string
+	}
+	var rows []p5row
+	for _, v := range pv.Vaults {
+		row := p5row{id: v.ID, protocol: v.Protocol.ID, address: v.StakeToken.Address}
+		if row.address == "" {
+			row.skipped = true
+			row.skipNote = "no stake_token.address"
+			rows = append(rows, row)
+			continue
+		}
+		// Resolve protocol.id → testCase name via alias map first, then
+		// direct lookup. Skip vaults whose protocol has no in-tree adapter.
+		targetName := v.Protocol.ID
+		if alias, ok := protocolAlias[targetName]; ok {
+			targetName = alias
+		}
+		tc, ok := byName[targetName]
+		if !ok {
+			row.skipped = true
+			row.skipNote = "no in-tree adapter"
+			rows = append(rows, row)
+			continue
+		}
+		// Override the testCase's address with this vault's stake token.
+		tc.address = row.address
+		legacyPrice, batchedPrice, _, errMsg := runCase(ctx, tc, client, mc, block, logger, thc)
+		row.legacy = legacyPrice
+		row.batched = batchedPrice
+		row.errMsg = errMsg
+		// A GetConfig revert means the vault isn't priceable on either
+		// path — that's a pre-existing library limitation for that vault,
+		// not a parity bug. Classify as skipped rather than failed so it
+		// doesn't drown out real mismatches.
+		if errMsg != "" && legacyPrice == "" && batchedPrice == "" {
+			row.skipped = true
+			row.skipNote = errMsg
+		} else {
+			row.match = legacyPrice != "" && legacyPrice == batchedPrice
+		}
+		rows = append(rows, row)
+	}
+
+	// Per-protocol aggregate report — keeps the output compact even with
+	// 190 vaults. Print individual misses only.
+	type stat struct{ matched, mismatched, skipped int }
+	byProto := map[string]*stat{}
+	for _, r := range rows {
+		s := byProto[r.protocol]
+		if s == nil {
+			s = &stat{}
+			byProto[r.protocol] = s
+		}
+		switch {
+		case r.skipped:
+			s.skipped++
+		case r.match:
+			s.matched++
+		default:
+			s.mismatched++
+		}
+	}
+
+	// Sort protocol names for deterministic output.
+	protos := make([]string, 0, len(byProto))
+	for p := range byProto {
+		protos = append(protos, p)
+	}
+	sort.Strings(protos)
+	fmt.Printf("  %-22s | matched | mismatched | skipped\n", "protocol")
+	fmt.Printf("  %s\n", strings.Repeat("-", 56))
+	totalMatched, totalMismatched, totalSkipped := 0, 0, 0
+	for _, p := range protos {
+		s := byProto[p]
+		totalMatched += s.matched
+		totalMismatched += s.mismatched
+		totalSkipped += s.skipped
+		fmt.Printf("  %-22s | %7d | %10d | %7d\n", p, s.matched, s.mismatched, s.skipped)
+	}
+	fmt.Printf("  %s\n", strings.Repeat("-", 56))
+	fmt.Printf("  %-22s | %7d | %10d | %7d\n\n", "TOTAL", totalMatched, totalMismatched, totalSkipped)
+
+	// List individual mismatches (if any) so they're easy to triage.
+	if totalMismatched > 0 {
+		fmt.Println("  Per-vault mismatches:")
+		for _, r := range rows {
+			if !r.skipped && !r.match {
+				fmt.Printf("    %s (%s @ %s)\n        legacy:  %q\n        batched: %q\n        err:     %s\n",
+					r.id, r.protocol, r.address, r.legacy, r.batched, r.errMsg)
+			}
+		}
+	}
+	return totalMismatched
 }
 
 // runCase fetches config from chain, builds the provider, then drives

@@ -121,11 +121,13 @@ func (p *PancakeSwapInfinityLPPriceProvider) Initialize(ctx context.Context, cli
 }
 
 // LPTokenPrice returns "0" as Infinity CLMM pools don't have traditional LP tokens.
-// Use TVL() and TVLBreakdown() instead for pool value metrics.
+// Use TVL() and TVLBreakdown() instead for pool value metrics. Uses
+// StringFixed(roundingDecimals) so the output format matches the batched
+// ComputePrice path (which goes through the standard decimal formatter).
 func (p *PancakeSwapInfinityLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	// CLMM pools don't have a single LP token price like V2 pools
 	// Each position is an NFT with its own value based on tick range
-	return "0", nil
+	return decimal.Zero.StringFixed(roundingDecimals), nil
 }
 
 // PriceReads / ComputePrice — CLMM pools have no per-LP-token price.
