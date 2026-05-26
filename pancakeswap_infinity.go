@@ -11,9 +11,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
+
+var _ BatchablePriceProvider = &PancakeSwapInfinityLPPriceProvider{}
 
 // CLPoolManager contract address on BNB Chain
 const CLPoolManagerAddressBSC = "0xa0FfB9c1CE1Fe56963B0321B32E7A0302114058b"
@@ -123,6 +126,16 @@ func (p *PancakeSwapInfinityLPPriceProvider) LPTokenPrice(ctx context.Context) (
 	// CLMM pools don't have a single LP token price like V2 pools
 	// Each position is an NFT with its own value based on tick range
 	return "0", nil
+}
+
+// PriceReads / ComputePrice — CLMM pools have no per-LP-token price.
+// Zero reads + zero result keeps this provider on the uniform batch path.
+func (p *PancakeSwapInfinityLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	return nil, nil
+}
+
+func (p *PancakeSwapInfinityLPPriceProvider) ComputePrice(_ []multicall3.Result3) (decimal.Decimal, error) {
+	return decimal.Zero, nil
 }
 
 // TVL returns the Total Value Locked in the pool in USD.

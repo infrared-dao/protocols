@@ -30,10 +30,13 @@ import (
 //     receives the corresponding []multicall3.Result3 in the same order.
 //   - PriceReads is called once per BatchLPTokenPrice invocation; it must
 //     not perform I/O.
-//   - ComputePrice is pure: no network I/O, no mutation of provider state
-//     other than what UpdateBlock already does. Per-call response failures
-//     (Result3.Success == false) are the provider's responsibility to
-//     handle — typically by returning an error.
+//   - ComputePrice is "batch-pure": it must not depend on or mutate the
+//     state of sibling queries in the same dispatch, and must not require
+//     additional Multicall3 RPC. Non-RPC I/O (e.g. HTTP to an off-chain
+//     price oracle) is permitted for providers whose price source isn't
+//     on-chain, since it can't be folded into aggregate3 anyway. Per-call
+//     response failures (Result3.Success == false) are the provider's
+//     responsibility to handle — typically by returning an error.
 //   - The provider's existing Initialize/GetConfig/UpdateBlock methods are
 //     still called by the caller; PriceReads and ComputePrice represent
 //     only the live-state read+compute step, replacing LPTokenPrice's
@@ -177,7 +180,21 @@ func dispatchBatch(
 	}
 
 	if len(allCalls) == 0 {
-		return // all queries in this partition errored at PriceReads
+		// No on-chain reads are needed by any query in this partition.
+		// Either every query errored in PriceReads (already recorded), or
+		// the partition contains only zero-read providers (e.g. pure
+		// price-map pass-throughs). For the latter, still drive their
+		// ComputePrice with an empty response slice.
+		for _, r := range ranges {
+			bp := queries[r.queryIdx].Provider.(BatchablePriceProvider)
+			price, err := bp.ComputePrice(nil)
+			if err != nil {
+				results[r.queryIdx] = BatchPriceResult{Err: fmt.Errorf("ComputePrice: %w", err)}
+				continue
+			}
+			results[r.queryIdx] = BatchPriceResult{Price: price}
+		}
+		return
 	}
 
 	// Block number is the same for all queries in this partition by

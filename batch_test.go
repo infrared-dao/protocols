@@ -286,6 +286,45 @@ func TestBatchLPTokenPrice_BatchedDispatchErrorIsolated(t *testing.T) {
 	}
 }
 
+// A partition containing only zero-PriceReads providers (pure pricemap
+// pass-throughs like satlayer, solvbtc) must still receive a ComputePrice
+// invocation each: skipping ComputePrice would leak zero-value results.
+func TestBatchLPTokenPrice_ZeroReadPartitionStillComputes(t *testing.T) {
+	t.Parallel()
+
+	p1 := &fakeBatchable{
+		reads:         nil, // no on-chain reads
+		priceFromResp: func([]multicall3.Result3) (decimal.Decimal, error) { return decimal.NewFromInt(7), nil },
+	}
+	p2 := &fakeBatchable{
+		reads:         nil,
+		priceFromResp: func([]multicall3.Result3) (decimal.Decimal, error) { return decimal.NewFromInt(11), nil },
+	}
+
+	mc := &fakeMulticall{
+		respFn: func(calls []multicall3.Call3) ([]multicall3.Result3, error) {
+			t.Errorf("Aggregate3 must not be called when all reads are empty")
+			return nil, nil
+		},
+	}
+
+	results, err := BatchLPTokenPrice(context.Background(), mc, nil, nil, []BatchPriceQuery{
+		{Provider: p1}, {Provider: p2},
+	})
+	if err != nil {
+		t.Fatalf("BatchLPTokenPrice: %v", err)
+	}
+	if mc.dispatches != 0 {
+		t.Errorf("dispatches = %d, want 0 (no calls to aggregate)", mc.dispatches)
+	}
+	if !results[0].Price.Equal(decimal.NewFromInt(7)) {
+		t.Errorf("results[0].Price = %v, want 7", results[0].Price)
+	}
+	if !results[1].Price.Equal(decimal.NewFromInt(11)) {
+		t.Errorf("results[1].Price = %v, want 11", results[1].Price)
+	}
+}
+
 // Suppress the unused-import warning in case zerolog is removed by a later
 // refactor — keep it referenced so the import block stays stable across
 // follow-up edits.

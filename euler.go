@@ -11,11 +11,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
 
 var _ Protocol = &EulerLPPriceProvider{}
+var _ BatchablePriceProvider = &EulerLPPriceProvider{}
 
 type EulerConfig struct {
 	Asset       string `json:"asset"`
@@ -83,28 +85,85 @@ func (e *EulerLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error)
 	if err != nil {
 		return "", err
 	}
-
-	if ts.Cmp(big.NewInt(0)) == 0 {
-		err = fmt.Errorf("total supply is zero")
-		e.logger.Error().Err(err).Msg("failed to fetch total supply")
-		return "", err
+	opts := &bind.CallOpts{Context: ctx, BlockNumber: e.block}
+	ta, err := e.contract.TotalAssets(opts)
+	if err != nil {
+		return "", fmt.Errorf("euler: totalAssets: %w", err)
 	}
-
-	tvl, err := e.tvl(ctx)
+	price, err := e.computeLPPriceFromReads(ts, ta)
 	if err != nil {
 		return "", err
 	}
-
-	tsd := NormalizeAmount(ts, e.config.LPTDecimals)
-	price := tvl.Div(tsd)
-
-	e.logger.Debug().
-		Str("totalValue", tvl.String()).
-		Str("totalSupply", ts.String()).
-		Str("pricePerToken", price.String()).
-		Msg("LP token price calculated successfully")
-
 	return price.StringFixed(roundingDecimals), nil
+}
+
+func (e *EulerLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	abi, err := sc.EulerVaultMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("euler: ABI: %w", err)
+	}
+	tsData, err := abi.Pack("totalSupply")
+	if err != nil {
+		return nil, fmt.Errorf("euler: pack totalSupply: %w", err)
+	}
+	taData, err := abi.Pack("totalAssets")
+	if err != nil {
+		return nil, fmt.Errorf("euler: pack totalAssets: %w", err)
+	}
+	return []multicall3.Call3{
+		{Target: e.address, AllowFailure: false, CallData: tsData},
+		{Target: e.address, AllowFailure: false, CallData: taData},
+	}, nil
+}
+
+func (e *EulerLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 2 {
+		return decimal.Zero, fmt.Errorf("euler: expected 2 responses, got %d", len(responses))
+	}
+	for i, r := range responses {
+		if !r.Success {
+			return decimal.Zero, fmt.Errorf("euler: sub-call %d reverted", i)
+		}
+	}
+	abi, err := sc.EulerVaultMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("euler: ABI: %w", err)
+	}
+	tsOut, err := abi.Methods["totalSupply"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("euler: unpack totalSupply: %w", err)
+	}
+	totalSupply, ok := tsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("euler: totalSupply type %T", tsOut[0])
+	}
+	taOut, err := abi.Methods["totalAssets"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("euler: unpack totalAssets: %w", err)
+	}
+	totalAssets, ok := taOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("euler: totalAssets type %T", taOut[0])
+	}
+	return e.computeLPPriceFromReads(totalSupply, totalAssets)
+}
+
+func (e *EulerLPPriceProvider) computeLPPriceFromReads(totalSupply, totalAssets *big.Int) (decimal.Decimal, error) {
+	if totalSupply.Sign() == 0 {
+		err := fmt.Errorf("total supply is zero")
+		e.logger.Error().Err(err).Msg("invalid totalSupply")
+		return decimal.Zero, err
+	}
+	assetPrice, err := e.getPrice(e.config.Asset)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	assetAmountDecimal := NormalizeAmount(totalAssets, assetPrice.Decimals)
+	tvl := assetAmountDecimal.Mul(assetPrice.Price)
+	tsd := NormalizeAmount(totalSupply, e.config.LPTDecimals)
+	pricePerToken := tvl.Div(tsd)
+	e.logger.Debug().Str("pricePerToken", pricePerToken.String()).Msg("LP token price calculated successfully")
+	return pricePerToken, nil
 }
 
 func (e *EulerLPPriceProvider) TVL(ctx context.Context) (string, error) {

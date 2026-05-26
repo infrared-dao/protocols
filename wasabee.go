@@ -12,11 +12,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
 
 var _ Protocol = &WasabeeLPPriceProvider{}
+var _ BatchablePriceProvider = &WasabeeLPPriceProvider{}
 
 // WasabeeConfig defines the configuration for Wasabee adapter
 type WasabeeConfig struct {
@@ -92,34 +94,100 @@ func (w *WasabeeLPPriceProvider) Initialize(ctx context.Context, client bind.Con
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD.
 func (w *WasabeeLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	// Fetch total supply
 	totalSupply, err := w.getTotalSupply(ctx)
 	if err != nil {
 		return "", err
 	}
-
-	// Avoid division by zero
-	if totalSupply.Sign() == 0 {
-		err := errors.New("totalSupply is zero, cannot calculate LP token price")
-		w.logger.Error().Err(err).Msg("Invalid totalSupply")
-		return "", err
-	}
-
-	totalValue, err := w.totalValue(ctx)
+	a0, a1, err := w.getPoolBalances(ctx)
 	if err != nil {
 		return "", err
 	}
+	price, err := w.computeLPPriceFromReads(totalSupply, a0, a1)
+	if err != nil {
+		return "", err
+	}
+	return price.StringFixed(roundingDecimals), nil
+}
 
-	totalSupplyDecimal := NormalizeAmount(totalSupply, w.config.LPTDecimals)
-	pricePerToken := totalValue.Div(totalSupplyDecimal)
+func (w *WasabeeLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	abi, err := sc.WasabeeVaultMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("wasabee: ABI: %w", err)
+	}
+	tsData, err := abi.Pack("totalSupply")
+	if err != nil {
+		return nil, fmt.Errorf("wasabee: pack totalSupply: %w", err)
+	}
+	gtaData, err := abi.Pack("getTotalAmounts")
+	if err != nil {
+		return nil, fmt.Errorf("wasabee: pack getTotalAmounts: %w", err)
+	}
+	return []multicall3.Call3{
+		{Target: w.address, AllowFailure: false, CallData: tsData},
+		{Target: w.address, AllowFailure: false, CallData: gtaData},
+	}, nil
+}
 
-	w.logger.Debug().
-		Str("totalValue", totalValue.String()).
-		Str("totalSupply", totalSupplyDecimal.String()).
-		Str("pricePerToken", pricePerToken.String()).
-		Msg("LP token price calculated successfully")
+func (w *WasabeeLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 2 {
+		return decimal.Zero, fmt.Errorf("wasabee: expected 2 responses, got %d", len(responses))
+	}
+	for i, r := range responses {
+		if !r.Success {
+			return decimal.Zero, fmt.Errorf("wasabee: sub-call %d reverted", i)
+		}
+	}
+	abi, err := sc.WasabeeVaultMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("wasabee: ABI: %w", err)
+	}
+	tsOut, err := abi.Methods["totalSupply"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("wasabee: unpack totalSupply: %w", err)
+	}
+	totalSupply, ok := tsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("wasabee: totalSupply type %T", tsOut[0])
+	}
+	gtaOut, err := abi.Methods["getTotalAmounts"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("wasabee: unpack getTotalAmounts: %w", err)
+	}
+	if len(gtaOut) != 2 {
+		return decimal.Zero, fmt.Errorf("wasabee: getTotalAmounts returned %d fields, want 2", len(gtaOut))
+	}
+	a0, ok := gtaOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("wasabee: amount0 type %T", gtaOut[0])
+	}
+	a1, ok := gtaOut[1].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("wasabee: amount1 type %T", gtaOut[1])
+	}
+	return w.computeLPPriceFromReads(totalSupply, a0, a1)
+}
 
-	return pricePerToken.StringFixed(roundingDecimals), nil
+func (w *WasabeeLPPriceProvider) computeLPPriceFromReads(totalSupply, amount0, amount1 *big.Int) (decimal.Decimal, error) {
+	if totalSupply.Sign() == 0 {
+		err := errors.New("totalSupply is zero, cannot calculate LP token price")
+		w.logger.Error().Err(err).Msg("Invalid totalSupply")
+		return decimal.Zero, err
+	}
+	price0, err := w.getPrice(w.config.Token0)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	price1, err := w.getPrice(w.config.Token1)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	a0d := NormalizeAmount(amount0, price0.Decimals)
+	a1d := NormalizeAmount(amount1, price1.Decimals)
+	totalValue := a0d.Mul(price0.Price).Add(a1d.Mul(price1.Price))
+	tsd := NormalizeAmount(totalSupply, w.config.LPTDecimals)
+	pricePerToken := totalValue.Div(tsd)
+	w.logger.Debug().Str("pricePerToken", pricePerToken.String()).Msg("LP token price calculated successfully")
+	return pricePerToken, nil
 }
 
 // TVL returns the Total Value Locked in the protocol in USD.

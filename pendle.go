@@ -11,6 +11,7 @@ import (
 
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 
 	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
@@ -34,6 +35,7 @@ const (
 )
 
 var _ Protocol = &PendleLPPriceProvider{}
+var _ BatchablePriceProvider = &PendleLPPriceProvider{}
 
 type PendleConfig struct {
 	PoolAddress string `json:"pool_address"`
@@ -79,26 +81,41 @@ func (p *PendleLPPriceProvider) Initialize(ctx context.Context, client bind.Cont
 }
 
 func (p *PendleLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	supply, tvl, err := p.getSupplyAndTVL(ctx)
+	price, err := p.computeLPPriceFromReads(ctx)
 	if err != nil {
 		return "", err
 	}
+	return price.StringFixed(roundingDecimals), nil
+}
 
+// PriceReads / ComputePrice — Pendle prices come from an off-chain HTTP
+// endpoint (api-v2.pendle.finance), not Multicall3. Implementing
+// BatchablePriceProvider with zero reads keeps the dispatch path uniform;
+// ComputePrice does the HTTP fetch (cached for 5s upstream — see
+// getSupplyAndTVL). Because the batch dispatcher does not propagate a
+// context to ComputePrice, the HTTP fetch falls back to context.Background;
+// callers that need a richer context should invoke LPTokenPrice directly.
+func (p *PendleLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	return nil, nil
+}
+
+func (p *PendleLPPriceProvider) ComputePrice(_ []multicall3.Result3) (decimal.Decimal, error) {
+	return p.computeLPPriceFromReads(context.Background())
+}
+
+func (p *PendleLPPriceProvider) computeLPPriceFromReads(ctx context.Context) (decimal.Decimal, error) {
+	supply, tvl, err := p.getSupplyAndTVL(ctx)
+	if err != nil {
+		return decimal.Zero, err
+	}
 	if supply.Cmp(decimal.Zero) == 0 {
 		err = fmt.Errorf("total supply is zero")
 		p.logger.Error().Err(err).Msg("failed to fetch total supply and tvl")
-		return "", err
+		return decimal.Zero, err
 	}
-
 	price := tvl.Div(supply)
-
-	p.logger.Debug().
-		Str("totalValue", tvl.String()).
-		Str("totalSupply", supply.String()).
-		Str("pricePerToken", price.String()).
-		Msg("LP token price calculated successfully")
-
-	return price.StringFixed(roundingDecimals), nil
+	p.logger.Debug().Str("pricePerToken", price.String()).Msg("LP token price calculated successfully")
+	return price, nil
 }
 
 func (p *PendleLPPriceProvider) TVL(ctx context.Context) (string, error) {

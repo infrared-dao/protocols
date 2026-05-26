@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -23,6 +24,7 @@ import (
 const solvBTC = "0x541FD749419CA806a8bc7da8ac23D346f2dF8B77"
 
 var _ Protocol = &SolvLPPriceProvider{}
+var _ BatchablePriceProvider = &SolvLPPriceProvider{}
 
 type SolvConfig struct {
 	Asset       string `json:"asset"`
@@ -86,16 +88,30 @@ func (s *SolvLPPriceProvider) Initialize(ctx context.Context, client bind.Contra
 }
 
 func (s *SolvLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	price, err := s.getPrice(s.config.Asset)
+	price, err := s.computeLPPriceFromReads()
 	if err != nil {
 		return "", err
 	}
+	return price.StringFixed(roundingDecimals), nil
+}
 
-	s.logger.Debug().
-		Str("pricePerToken", price.Price.String()).
-		Msg("LP token price calculated successfully")
+// PriceReads returns no on-chain calls: SolvBTC.BERA is a 1:1 receipt of
+// the underlying asset whose USD price is fetched off-chain.
+func (s *SolvLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	return nil, nil
+}
 
-	return price.Price.StringFixed(roundingDecimals), nil
+func (s *SolvLPPriceProvider) ComputePrice(_ []multicall3.Result3) (decimal.Decimal, error) {
+	return s.computeLPPriceFromReads()
+}
+
+func (s *SolvLPPriceProvider) computeLPPriceFromReads() (decimal.Decimal, error) {
+	price, err := s.getPrice(s.config.Asset)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	s.logger.Debug().Str("pricePerToken", price.Price.String()).Msg("LP token price calculated successfully")
+	return price.Price, nil
 }
 
 func (s *SolvLPPriceProvider) TVL(ctx context.Context) (string, error) {

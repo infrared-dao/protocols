@@ -11,11 +11,13 @@ import (
 	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
 
 var _ Protocol = &D8xLPPriceProvider{}
+var _ BatchablePriceProvider = &D8xLPPriceProvider{}
 
 const (
 	One64x64                = "18446744073709551616" // 1 << 64
@@ -113,29 +115,88 @@ func (d8x *D8xLPPriceProvider) TVL(ctx context.Context) (string, error) {
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD
 func (d8x *D8xLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	// we call getShareTokenPriceD18(uint8 _poolId) which
-	// returns the price of dbUSD in bUSD decimal 18 format
 	opts := &bind.CallOpts{
 		Context:     ctx,
 		BlockNumber: d8x.block,
 	}
-
-	// get the share token price in collateral currency
 	px18, err := d8x.poolManagerContract.GetShareTokenPriceD18(opts, d8x.config.PoolId)
 	if err != nil {
 		return "", fmt.Errorf("unable to get share token price: %v", err)
 	}
-	pxCC := NormalizeAmount(px18, ShareTokenPriceDecimals)
-
-	// we call the oracle to get the collateral price in USD
 	oracleRes, err := d8x.marginTokenContract.LatestRoundData(opts)
 	if err != nil {
 		return "", fmt.Errorf("failed to call latestRoundData: %v", err)
 	}
-	px := NormalizeAmount(oracleRes.Answer, uint(d8x.config.MarginDecimals))
-	pxUSD := pxCC.Mul(px)
+	price := d8x.computeLPPriceFromReads(px18, oracleRes.Answer)
+	return price.StringFixed(roundingDecimals), nil
+}
 
-	return pxUSD.StringFixed(roundingDecimals), nil
+func (d8x *D8xLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	pmABI, err := sc.D8xPoolManagerMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("d8x: pool manager ABI: %w", err)
+	}
+	spData, err := pmABI.Pack("getShareTokenPriceD18", d8x.config.PoolId)
+	if err != nil {
+		return nil, fmt.Errorf("d8x: pack getShareTokenPriceD18: %w", err)
+	}
+	oracleABI, err := sc.AggregatorV3MetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("d8x: oracle ABI: %w", err)
+	}
+	lrdData, err := oracleABI.Pack("latestRoundData")
+	if err != nil {
+		return nil, fmt.Errorf("d8x: pack latestRoundData: %w", err)
+	}
+	return []multicall3.Call3{
+		{Target: d8x.config.PoolManager, AllowFailure: false, CallData: spData},
+		{Target: d8x.config.MarginToken, AllowFailure: false, CallData: lrdData},
+	}, nil
+}
+
+func (d8x *D8xLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 2 {
+		return decimal.Zero, fmt.Errorf("d8x: expected 2 responses, got %d", len(responses))
+	}
+	for i, r := range responses {
+		if !r.Success {
+			return decimal.Zero, fmt.Errorf("d8x: sub-call %d reverted", i)
+		}
+	}
+	pmABI, err := sc.D8xPoolManagerMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("d8x: pool manager ABI: %w", err)
+	}
+	spOut, err := pmABI.Methods["getShareTokenPriceD18"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("d8x: unpack getShareTokenPriceD18: %w", err)
+	}
+	px18, ok := spOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("d8x: sharePrice type %T", spOut[0])
+	}
+	oracleABI, err := sc.AggregatorV3MetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("d8x: oracle ABI: %w", err)
+	}
+	lrdOut, err := oracleABI.Methods["latestRoundData"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("d8x: unpack latestRoundData: %w", err)
+	}
+	if len(lrdOut) < 2 {
+		return decimal.Zero, fmt.Errorf("d8x: latestRoundData returned %d fields", len(lrdOut))
+	}
+	answer, ok := lrdOut[1].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("d8x: answer type %T", lrdOut[1])
+	}
+	return d8x.computeLPPriceFromReads(px18, answer), nil
+}
+
+func (d8x *D8xLPPriceProvider) computeLPPriceFromReads(px18, oracleAnswer *big.Int) decimal.Decimal {
+	pxCC := NormalizeAmount(px18, ShareTokenPriceDecimals)
+	px := NormalizeAmount(oracleAnswer, uint(d8x.config.MarginDecimals))
+	return pxCC.Mul(px)
 }
 
 func (d8x *D8xLPPriceProvider) GetConfig(ctx context.Context, address string, client bind.ContractBackend) ([]byte, error) {

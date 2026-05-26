@@ -10,10 +10,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
 )
 
 var _ Protocol = &IVXLPPriceProvider{}
+var _ BatchablePriceProvider = &IVXLPPriceProvider{}
 
 type IVXLPConfig struct {
 	LPTDecimals uint `json:"lpt_decimals"`
@@ -74,20 +77,54 @@ func (p *IVXLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 		Context:     ctx,
 		BlockNumber: p.block,
 	}
-
-	// Fetch share price from IVXLPMonitor contract
 	sharePrice, err := p.lpMonitorContract.GetSharePrice(opts)
 	if err != nil {
 		return "", fmt.Errorf("failed to get IVXLP share price, err: %w", err)
 	}
+	price := p.computeLPPriceFromReads(sharePrice)
+	return price.StringFixed(roundingDecimals), nil
+}
 
+func (p *IVXLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	abi, err := sc.IVXLPMonitorMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("ivx: ABI: %w", err)
+	}
+	spData, err := abi.Pack("getSharePrice")
+	if err != nil {
+		return nil, fmt.Errorf("ivx: pack getSharePrice: %w", err)
+	}
+	return []multicall3.Call3{
+		{Target: p.lpMonitorAddress, AllowFailure: false, CallData: spData},
+	}, nil
+}
+
+func (p *IVXLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 1 {
+		return decimal.Zero, fmt.Errorf("ivx: expected 1 response, got %d", len(responses))
+	}
+	if !responses[0].Success {
+		return decimal.Zero, fmt.Errorf("ivx: getSharePrice reverted")
+	}
+	abi, err := sc.IVXLPMonitorMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("ivx: ABI: %w", err)
+	}
+	spOut, err := abi.Methods["getSharePrice"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("ivx: unpack getSharePrice: %w", err)
+	}
+	sharePrice, ok := spOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("ivx: sharePrice type %T", spOut[0])
+	}
+	return p.computeLPPriceFromReads(sharePrice), nil
+}
+
+func (p *IVXLPPriceProvider) computeLPPriceFromReads(sharePrice *big.Int) decimal.Decimal {
 	pricePerToken := NormalizeAmount(sharePrice, p.config.LPTDecimals)
-
-	p.logger.Debug().
-		Str("Token Price", pricePerToken.String()).
-		Msg("LP token price fetched successfully")
-
-	return pricePerToken.StringFixed(roundingDecimals), nil
+	p.logger.Debug().Str("Token Price", pricePerToken.String()).Msg("LP token price fetched successfully")
+	return pricePerToken
 }
 
 // TVL returns the Total Value Locked in the pool in USD.

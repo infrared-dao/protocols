@@ -11,9 +11,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
-	// "github.com/shopspring/decimal"
+	"github.com/shopspring/decimal"
 )
+
+var _ BatchablePriceProvider = &PaddleFiProvider{}
 
 type PaddleFiConfig struct {
 	PaddlefiContract string `json:"paddlefi_contract"`
@@ -77,6 +80,19 @@ func (a *PaddleFiProvider) Initialize(ctx context.Context, client bind.ContractB
 
 func (a *PaddleFiProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("LPTokenPrice not used in PaddleFiProvider")
+}
+
+// PriceReads / ComputePrice — PaddleFi tracks TVL only; there is no
+// per-LP-token price. Implementing BatchablePriceProvider with zero reads
+// keeps the dispatch path uniform; ComputePrice mirrors LPTokenPrice's
+// error so callers see consistent behavior regardless of which path they
+// use.
+func (a *PaddleFiProvider) PriceReads() ([]multicall3.Call3, error) {
+	return nil, nil
+}
+
+func (a *PaddleFiProvider) ComputePrice(_ []multicall3.Result3) (decimal.Decimal, error) {
+	return decimal.Zero, fmt.Errorf("LPTokenPrice not used in PaddleFiProvider")
 }
 
 func (a *PaddleFiProvider) TVL(ctx context.Context) (string, error) {
