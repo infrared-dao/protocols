@@ -61,3 +61,63 @@ For example, with Kodiak, the order of the tokens in a pool matters, so the Conf
 If your specific protocol does not require any such config data to later compute the LP Token price or TVL then you can return an empty byte array or simply "" since it will not need to be parsed back into json.
 
 This config information will only be generated once by the system by calling to Config() and storing its output, and then the output will be present to all future calls.  It is recommended that you make a custom type to store your config data and annotate it with appropriate json serialization directives eg. the `KodiakConfig` and `BexConfig` type structs.
+
+
+## Batched pricing via Multicall3 (v0.2.0+)
+
+As of `v0.2.0`, every in-tree adapter also implements
+`BatchablePriceProvider`, an opt-in extension of `Protocol` that lets
+callers price N tokens in a single `Multicall3.aggregate3` RPC instead
+of N independent `LPTokenPrice()` invocations.
+
+The `multicall3` sub-package wraps the on-chain Multicall3 contract at
+the canonical CREATE2-deterministic address
+`0xcA11bde05977b3631167028862bE2a173976CA11` (same on every EVM chain).
+The top-level dispatcher `protocols.BatchLPTokenPrice` partitions
+queries by block, emits one `aggregate3` per partition, and falls back
+to the per-token `LPTokenPrice` path for any provider that doesn't
+implement `BatchablePriceProvider`:
+
+```go
+import (
+    "github.com/infrared-dao/protocols"
+    "github.com/infrared-dao/protocols/multicall3"
+)
+
+mc, _ := multicall3.NewClient(ethClient)
+results, err := protocols.BatchLPTokenPrice(
+    ctx, mc, ethClient, httpClient,
+    []protocols.BatchPriceQuery{
+        {Provider: providerA, BlockNumber: nil}, // nil = latest
+        {Provider: providerB, BlockNumber: nil},
+        // …
+    },
+)
+// results[i].Price / results[i].Err for each query, in input order.
+```
+
+All sub-calls run with `AllowFailure: true` so a single reverting read
+(e.g. an expired oracle on one vault) doesn't poison the rest of the
+batch — per-query failures surface as `results[i].Err` while siblings
+return prices normally.
+
+When implementing a new adapter, the migration to
+`BatchablePriceProvider` is mechanical:
+
+1. Factor the math inside `LPTokenPrice` into a private
+   `computeLPPriceFromReads(...)` helper that takes the decoded read
+   values as arguments and returns a `decimal.Decimal`.
+2. Have `LPTokenPrice` fetch its reads via the existing bound-contract
+   methods, then call the helper.
+3. Add `PriceReads() ([]multicall3.Call3, error)` that ABI-encodes the
+   same reads as `Call3{Target, AllowFailure: true, CallData}` entries.
+4. Add `ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error)`
+   that checks `Success`, unpacks the response bytes, and feeds them
+   into the same helper.
+
+Both paths route through `computeLPPriceFromReads`, so a per-protocol
+golden test pinning `LPTokenPrice == BatchLPTokenPrice` against
+synthesised ABI responses is enough to keep the two paths in lockstep.
+See `bex.go` / `bex_test.go` and `kodiak.go` / `kodiak_test.go` for
+canonical examples, and `cmd/test/batch_vs_legacy/main.go` for the
+mainnet parity tool used during the v0.2.0 rollout.
