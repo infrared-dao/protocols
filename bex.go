@@ -12,11 +12,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
 
 var _ Protocol = &BexLPPriceProvider{}
+
+// Compile-time check that BexLPPriceProvider satisfies BatchablePriceProvider.
+var _ BatchablePriceProvider = &BexLPPriceProvider{}
 
 type BexPoolConfig struct {
 	PoolID      [32]byte `json:"poolid"`
@@ -81,7 +85,12 @@ func (b *BexLPPriceProvider) Initialize(ctx context.Context, client bind.Contrac
 	return nil
 }
 
-// LPTokenPrice returns the current price of the protocol's LP token in USD
+// LPTokenPrice returns the current price of the protocol's LP token in USD.
+//
+// Legacy path — issues two sequential eth_calls (pool.getActualSupply +
+// vault.getPoolTokens). The batchable path (PriceReads + ComputePrice)
+// dispatches both as one Multicall3.aggregate3. Both paths share
+// computeLPPriceFromReads so prices match for the same inputs.
 func (b *BexLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	opts := &bind.CallOpts{
 		Context:     ctx,
@@ -94,16 +103,136 @@ func (b *BexLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	// Avoid division by zero
-	if totalSupply.Sign() == 0 {
-		err := errors.New("totalSupply is zero, cannot calculate LP token price")
-		b.logger.Error().Err(err).Msg("Invalid totalSupply")
+	balances, err := b.getUnderlyingBalances(ctx)
+	if err != nil {
 		return "", err
 	}
 
-	totalValue, err := b.totalValue(ctx)
+	price, err := b.computeLPPriceFromReads(totalSupply, balances)
 	if err != nil {
 		return "", err
+	}
+	return price.StringFixed(roundingDecimals), nil
+}
+
+// PriceReads describes the two eth_calls needed to compute the LP price:
+// pool.getActualSupply (against the pool contract) and vault.getPoolTokens
+// (against the Balancer vault contract, with the pool ID as argument).
+//
+// Targets differ across the two calls — multicall3 handles that naturally
+// since each Call3 has its own target.
+func (b *BexLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	poolABI, err := sc.BalancerBasePoolMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("bex: get pool ABI: %w", err)
+	}
+	totalSupplyData, err := poolABI.Pack("getActualSupply")
+	if err != nil {
+		return nil, fmt.Errorf("bex: pack getActualSupply: %w", err)
+	}
+
+	vaultABI, err := sc.BalancerVaultMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("bex: get vault ABI: %w", err)
+	}
+	poolTokensData, err := vaultABI.Pack("getPoolTokens", b.config.PoolID)
+	if err != nil {
+		return nil, fmt.Errorf("bex: pack getPoolTokens: %w", err)
+	}
+
+	return []multicall3.Call3{
+		{Target: b.poolAddress, AllowFailure: false, CallData: totalSupplyData},
+		{Target: b.vaultAddress, AllowFailure: false, CallData: poolTokensData},
+	}, nil
+}
+
+// ComputePrice decodes the two responses (totalSupply + pool tokens) and
+// computes the LP token price. Pure — no network I/O.
+func (b *BexLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 2 {
+		return decimal.Zero, fmt.Errorf("bex: expected 2 responses, got %d", len(responses))
+	}
+	if !responses[0].Success {
+		return decimal.Zero, errors.New("bex: getActualSupply call reverted in multicall")
+	}
+	if !responses[1].Success {
+		return decimal.Zero, errors.New("bex: getPoolTokens call reverted in multicall")
+	}
+
+	// Unpack getActualSupply → *big.Int
+	poolABI, err := sc.BalancerBasePoolMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("bex: get pool ABI: %w", err)
+	}
+	tsOut, err := poolABI.Methods["getActualSupply"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("bex: unpack getActualSupply: %w", err)
+	}
+	if len(tsOut) != 1 {
+		return decimal.Zero, fmt.Errorf("bex: getActualSupply returned %d values, want 1", len(tsOut))
+	}
+	totalSupply, ok := tsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("bex: getActualSupply value type %T, want *big.Int", tsOut[0])
+	}
+
+	// Unpack getPoolTokens → (tokens []common.Address, balances []*big.Int, lastChangeBlock *big.Int)
+	vaultABI, err := sc.BalancerVaultMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("bex: get vault ABI: %w", err)
+	}
+	ptOut, err := vaultABI.Methods["getPoolTokens"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("bex: unpack getPoolTokens: %w", err)
+	}
+	if len(ptOut) < 2 {
+		return decimal.Zero, fmt.Errorf("bex: getPoolTokens returned %d values, want >=2", len(ptOut))
+	}
+	tokens, ok := ptOut[0].([]common.Address)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("bex: tokens value type %T, want []common.Address", ptOut[0])
+	}
+	rawBalances, ok := ptOut[1].([]*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("bex: balances value type %T, want []*big.Int", ptOut[1])
+	}
+	if len(tokens) != len(rawBalances) {
+		return decimal.Zero, fmt.Errorf("bex: tokens (%d) and balances (%d) length mismatch", len(tokens), len(rawBalances))
+	}
+
+	// Filter out the pool's own LP token from the balances (same logic as
+	// getUnderlyingBalances) — some pools lock LP tokens in themselves.
+	balances := make(map[string]*big.Int, len(tokens))
+	poolAddressLower := strings.ToLower(b.poolAddress.Hex())
+	for i, t := range tokens {
+		token := strings.ToLower(t.Hex())
+		if token == poolAddressLower {
+			continue
+		}
+		balances[token] = rawBalances[i]
+	}
+
+	return b.computeLPPriceFromReads(totalSupply, balances)
+}
+
+// computeLPPriceFromReads is the shared math between the legacy
+// LPTokenPrice and the new batchable ComputePrice paths. Pure: takes
+// the raw read values + config/prices, returns the LP token price.
+func (b *BexLPPriceProvider) computeLPPriceFromReads(totalSupply *big.Int, balances map[string]*big.Int) (decimal.Decimal, error) {
+	if totalSupply.Sign() == 0 {
+		err := errors.New("totalSupply is zero, cannot calculate LP token price")
+		b.logger.Error().Err(err).Msg("Invalid totalSupply")
+		return decimal.Zero, err
+	}
+
+	totalValue := decimal.Zero
+	for token, balance := range balances {
+		price, err := b.getPrice(token)
+		if err != nil {
+			return decimal.Zero, err
+		}
+		balanceDecimal := NormalizeAmount(balance, price.Decimals)
+		totalValue = totalValue.Add(balanceDecimal.Mul(price.Price))
 	}
 
 	totalSupplyDecimal := NormalizeAmount(totalSupply, b.config.LPTDecimals)
@@ -115,7 +244,7 @@ func (b *BexLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 		Str("pricePerToken", pricePerToken.String()).
 		Msg("LP token price calculated successfully")
 
-	return pricePerToken.StringFixed(roundingDecimals), nil
+	return pricePerToken, nil
 }
 
 // TVL returns the Total Value Locked in the pool in USD cents (1 USD = 100 cents).
