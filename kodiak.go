@@ -314,8 +314,8 @@ func (k *KodiakLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("kodiak: pack balances: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: k.address, AllowFailure: false, CallData: totalSupplyData},
-		{Target: k.address, AllowFailure: false, CallData: balancesData},
+		{Target: k.address, AllowFailure: true, CallData: totalSupplyData},
+		{Target: k.address, AllowFailure: true, CallData: balancesData},
 	}, nil
 }
 

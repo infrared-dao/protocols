@@ -95,7 +95,7 @@ func (p *IVXLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("ivx: pack getSharePrice: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: p.lpMonitorAddress, AllowFailure: false, CallData: spData},
+		{Target: p.lpMonitorAddress, AllowFailure: true, CallData: spData},
 	}, nil
 }
 

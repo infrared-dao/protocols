@@ -149,8 +149,8 @@ func (d8x *D8xLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("d8x: pack latestRoundData: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: d8x.config.PoolManager, AllowFailure: false, CallData: spData},
-		{Target: d8x.config.MarginToken, AllowFailure: false, CallData: lrdData},
+		{Target: d8x.config.PoolManager, AllowFailure: true, CallData: spData},
+		{Target: d8x.config.MarginToken, AllowFailure: true, CallData: lrdData},
 	}, nil
 }
 

@@ -114,8 +114,8 @@ func (c *ConcreteLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("concrete: pack totalAssets: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: c.address, AllowFailure: false, CallData: tsData},
-		{Target: c.address, AllowFailure: false, CallData: taData},
+		{Target: c.address, AllowFailure: true, CallData: tsData},
+		{Target: c.address, AllowFailure: true, CallData: taData},
 	}, nil
 }
 

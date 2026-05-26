@@ -269,6 +269,28 @@ func main() {
 				return protocols.NewBexLPPriceProvider(vault, a, b, p, l, cfg)
 			},
 		},
+		{
+			// D8x has no priceMap parameter — it reads its USD reference
+			// price from the configured AggregatorV3 oracle on chain.
+			name:      "d8x",
+			address:   "0x26bbc26415c6316890565f5f73017f85ee70b60c",
+			configure: func(ctx context.Context, a string, c *ethclient.Client) ([]byte, error) { return (&protocols.D8xLPPriceProvider{}).GetConfig(ctx, a, c) },
+			build: func(a common.Address, b *big.Int, _ map[string]protocols.Price, l zerolog.Logger, cfg []byte, _ *ethclient.Client) protocols.Protocol {
+				return protocols.NewD8xLPPriceProvider(a, b, l, cfg)
+			},
+		},
+		{
+			// IVX takes a separate lpMonitor address in addition to the
+			// LP token address. lpMonitor on mainnet is hardcoded here;
+			// the test `address` is the LP token itself.
+			name:      "ivx",
+			address:   "0x3b8B155E3C44f07f6EAd507570f4047C8B450A7F",
+			configure: func(ctx context.Context, a string, c *ethclient.Client) ([]byte, error) { return (&protocols.IVXLPPriceProvider{}).GetConfig(ctx, a, c) },
+			build: func(a common.Address, b *big.Int, _ map[string]protocols.Price, l zerolog.Logger, cfg []byte, _ *ethclient.Client) protocols.Protocol {
+				lpMonitor := common.HexToAddress("0xf30EC2B4363c7957dab4b83B3211a278e280802D")
+				return protocols.NewIVXLPPriceProvider(lpMonitor, a, b, l, cfg)
+			},
+		},
 	}
 
 	thc := http.NewTestHttpClient()
@@ -278,20 +300,31 @@ func main() {
 		batched string
 		match   bool
 		errMsg  string
+		// provBatch is the initialized provider kept around so the multi-
+		// query phase below can re-submit it as part of a combined
+		// BatchLPTokenPrice call without paying for a second Initialize.
+		provBatch protocols.Protocol
 	}
 	rows := make([]row, 0, len(cases))
 
 	for _, tc := range cases {
 		r := row{name: tc.name}
-		legacyPrice, batchedPrice, errMsg := runCase(ctx, tc, client, mc, block, logger, thc)
+		legacyPrice, batchedPrice, provBatch, errMsg := runCase(ctx, tc, client, mc, block, logger, thc)
 		r.legacy = legacyPrice
 		r.batched = batchedPrice
 		r.errMsg = errMsg
-		r.match = errMsg == "" && legacyPrice == batchedPrice
+		// Match holds whenever the two paths agree, whether that's a
+		// numerical match on a successful price or a "<both reverted>"
+		// sentinel where both paths failed at the contract layer
+		// (e.g. expired oracle). A non-empty errMsg in the reverted-
+		// parity case is informational, not a failure.
+		r.match = legacyPrice != "" && legacyPrice == batchedPrice
+		r.provBatch = provBatch
 		rows = append(rows, r)
 	}
 
-	// Report. Wider columns to fit long decimals.
+	// === Phase 1 report: per-vault parity (N=1 batch per call) ===
+	fmt.Println("Phase 1: per-vault parity (N=1 BatchLPTokenPrice per vault)")
 	fmt.Printf("%-12s | %-30s | %-30s | %-5s | %s\n", "protocol", "legacy LPTokenPrice", "BatchLPTokenPrice", "match", "notes")
 	fmt.Printf("%-12s-+-%-30s-+-%-30s-+-%-5s-+-%s\n", strings.Repeat("-", 12), strings.Repeat("-", 30), strings.Repeat("-", 30), strings.Repeat("-", 5), strings.Repeat("-", 30))
 	fails := 0
@@ -303,17 +336,76 @@ func main() {
 		}
 		fmt.Printf("%-12s | %-30s | %-30s | %-5s | %s\n", r.name, r.legacy, r.batched, marker, r.errMsg)
 	}
-	fmt.Printf("\n%d/%d passed", len(rows)-fails, len(rows))
-	if fails > 0 {
-		fmt.Printf(" — %d FAILED\n", fails)
+	fmt.Printf("\n%d/%d passed\n\n", len(rows)-fails, len(rows))
+
+	// === Phase 2: N>1 multi-query batch ===
+	// Take every successfully-initialized provider and submit them as ONE
+	// BatchLPTokenPrice invocation. Verifies that the dispatcher correctly
+	// partitions by block (all same block here so we expect 1 aggregate3),
+	// packs reads, and demultiplexes responses back per-query — against
+	// real RPC, not mocks.
+	queries := make([]protocols.BatchPriceQuery, 0, len(rows))
+	idxToRow := make([]int, 0, len(rows))
+	for i, r := range rows {
+		if r.provBatch == nil {
+			continue
+		}
+		queries = append(queries, protocols.BatchPriceQuery{
+			Provider:    r.provBatch,
+			BlockNumber: block,
+		})
+		idxToRow = append(idxToRow, i)
+	}
+
+	multiResults, err := protocols.BatchLPTokenPrice(ctx, mc, client, thc, queries)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Phase 2 BatchLPTokenPrice (N=%d): %v\n", len(queries), err)
 		os.Exit(2)
 	}
-	fmt.Println()
+
+	fmt.Printf("Phase 2: multi-query batch (N=%d in a single BatchLPTokenPrice call)\n", len(queries))
+	fmt.Printf("%-12s | %-30s | %-30s | %-5s | %s\n", "protocol", "single-query batched", "multi-query batched", "match", "notes")
+	fmt.Printf("%-12s-+-%-30s-+-%-30s-+-%-5s-+-%s\n", strings.Repeat("-", 12), strings.Repeat("-", 30), strings.Repeat("-", 30), strings.Repeat("-", 5), strings.Repeat("-", 30))
+	multiFails := 0
+	for i, res := range multiResults {
+		r := &rows[idxToRow[i]]
+		var multiStr, note string
+		if res.Err != nil {
+			note = fmt.Sprintf("multi-query err: %v", res.Err)
+			multiStr = "<reverted>"
+		} else {
+			multiStr = res.Price.StringFixed(8)
+		}
+		// Parity holds iff both phases agree on outcome. Phase 1 records
+		// "<both reverted>" when both single-query paths revert; in that
+		// case Phase 2 must also revert (multiStr == "<reverted>"). For
+		// successful prices, multiStr must match Phase 1's batched value.
+		var match bool
+		if r.batched == "<both reverted>" {
+			match = res.Err != nil
+		} else {
+			match = note == "" && multiStr == r.batched
+		}
+		marker := "yes"
+		if !match {
+			marker = "NO"
+			multiFails++
+		}
+		fmt.Printf("%-12s | %-30s | %-30s | %-5s | %s\n", r.name, r.batched, multiStr, marker, note)
+	}
+	fmt.Printf("\n%d/%d passed in multi-query batch\n", len(multiResults)-multiFails, len(multiResults))
+
+	totalFails := fails + multiFails
+	if totalFails > 0 {
+		fmt.Fprintf(os.Stderr, "\n%d FAILED across both phases\n", totalFails)
+		os.Exit(2)
+	}
 }
 
 // runCase fetches config from chain, builds the provider, then drives
 // both paths at the same pinned block. Returns the two prices (legacy /
-// batched) as strings plus any error encountered.
+// batched) as strings, the initialized batched-path provider (kept alive
+// for the multi-query phase), plus any error encountered.
 func runCase(
 	ctx context.Context,
 	tc testCase,
@@ -322,10 +414,10 @@ func runCase(
 	block *big.Int,
 	logger zerolog.Logger,
 	thc fetchers.HttpClient,
-) (legacy, batched, errMsg string) {
+) (legacy, batched string, provBatch protocols.Protocol, errMsg string) {
 	cfg, err := tc.configure(ctx, tc.address, client)
 	if err != nil {
-		return "", "", fmt.Sprintf("GetConfig: %v", err)
+		return "", "", nil, fmt.Sprintf("GetConfig: %v", err)
 	}
 
 	// Stub a priceMap entry for every address that appears in the config,
@@ -351,41 +443,63 @@ func runCase(
 	// the batched path have isolated state — no risk of a path mutating
 	// internal state that influences the other.
 	provLegacy := tc.build(addr, block, prices, logger, cfg, client)
-	provBatch := tc.build(addr, block, prices, logger, cfg, client)
+	provBatch = tc.build(addr, block, prices, logger, cfg, client)
 
 	if err := provLegacy.Initialize(ctx, client, thc); err != nil {
-		return "", "", fmt.Sprintf("Initialize (legacy): %v", err)
+		return "", "", nil, fmt.Sprintf("Initialize (legacy): %v", err)
 	}
 	if err := provBatch.Initialize(ctx, client, thc); err != nil {
-		return "", "", fmt.Sprintf("Initialize (batch): %v", err)
+		return "", "", nil, fmt.Sprintf("Initialize (batch): %v", err)
 	}
 
-	// Legacy path.
+	// Drive both paths unconditionally so we can compare success/error
+	// shape across both — a revert at the contract layer (e.g. d8x's
+	// oracle feed expired, ivx's getSharePrice division-by-zero) should
+	// surface symmetrically on both paths and that's a valid parity
+	// outcome, not a migration bug.
 	legacy, lerr := provLegacy.LPTokenPrice(ctx)
-	if lerr != nil {
-		return "", "", fmt.Sprintf("legacy LPTokenPrice: %v", lerr)
-	}
-
-	// Batched path. One query, one provider — exercises dispatchBatch's
-	// full PriceReads → aggregate3 → ComputePrice round-trip.
-	results, err := protocols.BatchLPTokenPrice(ctx, mc, client, thc, []protocols.BatchPriceQuery{
+	results, batchErr := protocols.BatchLPTokenPrice(ctx, mc, client, thc, []protocols.BatchPriceQuery{
 		{Provider: provBatch, BlockNumber: block},
 	})
-	if err != nil {
-		return legacy, "", fmt.Sprintf("BatchLPTokenPrice: %v", err)
+
+	// Legacy succeeded: must compare batched to it numerically.
+	if lerr == nil {
+		if batchErr != nil {
+			return legacy, "", provBatch, fmt.Sprintf("BatchLPTokenPrice top-level err: %v", batchErr)
+		}
+		if len(results) != 1 {
+			return legacy, "", provBatch, fmt.Sprintf("BatchLPTokenPrice: expected 1 result, got %d", len(results))
+		}
+		if results[0].Err != nil {
+			return legacy, "", provBatch, fmt.Sprintf("BatchLPTokenPrice query: %v (legacy returned %s)", results[0].Err, legacy)
+		}
+		// The batched path returns a decimal.Decimal — convert to the same
+		// fixed-decimal string the legacy path emits so the comparison is
+		// apples-to-apples. The legacy path uses StringFixed(roundingDecimals)
+		// internally; roundingDecimals is package-private (= 8 at the time of
+		// writing) so we hard-code 8 here to match.
+		batched = results[0].Price.StringFixed(8)
+		return legacy, batched, provBatch, ""
 	}
-	if len(results) != 1 {
-		return legacy, "", fmt.Sprintf("BatchLPTokenPrice: expected 1 result, got %d", len(results))
+
+	// Legacy errored: parity holds iff the batched path also errored
+	// at the per-query level. The two error strings won't be byte-identical
+	// (legacy goes through go-ethereum's typed bindings, batched through
+	// raw Multicall3 aggregate3 + ABI decoding) but both should report
+	// the same root revert.
+	var batchedErr error
+	if batchErr != nil {
+		batchedErr = batchErr
+	} else if len(results) == 1 && results[0].Err != nil {
+		batchedErr = results[0].Err
 	}
-	if results[0].Err != nil {
-		return legacy, "", fmt.Sprintf("BatchLPTokenPrice query: %v", results[0].Err)
+	if batchedErr == nil {
+		return "", "", provBatch, fmt.Sprintf("LEGACY ERRORED but BATCHED SUCCEEDED — legacy=%v, batched=%s", lerr, results[0].Price.StringFixed(8))
 	}
-	// The batched path returns a decimal.Decimal — convert to the same
-	// fixed-decimal string the legacy path emits so the comparison is
-	// apples-to-apples. The legacy path uses StringFixed(roundingDecimals)
-	// internally; roundingDecimals is package-private (= 8 at the time of
-	// writing) so we hard-code 8 here to match.
-	batched = results[0].Price.StringFixed(8)
-	return legacy, batched, ""
+	// Both errored. Surface as "both-reverted" by leaving the price
+	// strings empty and using a notes line that says so. We can't string-
+	// equality compare the error texts (they're framed differently), but
+	// the fact that both paths fail at all is parity for our purposes.
+	return "<both reverted>", "<both reverted>", provBatch, fmt.Sprintf("legacy=%v; batched=%v", lerr, batchedErr)
 }
 

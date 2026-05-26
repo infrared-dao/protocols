@@ -124,8 +124,8 @@ func (a *AquaBeraLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("aquabera: pack getTotalAmounts: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: a.address, AllowFailure: false, CallData: tsData},
-		{Target: a.address, AllowFailure: false, CallData: balData},
+		{Target: a.address, AllowFailure: true, CallData: tsData},
+		{Target: a.address, AllowFailure: true, CallData: balData},
 	}, nil
 }
 

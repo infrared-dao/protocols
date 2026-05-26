@@ -141,8 +141,8 @@ func (b *BexLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 	}
 
 	return []multicall3.Call3{
-		{Target: b.poolAddress, AllowFailure: false, CallData: totalSupplyData},
-		{Target: b.vaultAddress, AllowFailure: false, CallData: poolTokensData},
+		{Target: b.poolAddress, AllowFailure: true, CallData: totalSupplyData},
+		{Target: b.vaultAddress, AllowFailure: true, CallData: poolTokensData},
 	}, nil
 }
 

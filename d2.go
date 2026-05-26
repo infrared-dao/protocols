@@ -111,8 +111,8 @@ func (d2 *D2LPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("d2: pack totalAssets: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: d2.address, AllowFailure: false, CallData: tsData},
-		{Target: d2.address, AllowFailure: false, CallData: taData},
+		{Target: d2.address, AllowFailure: true, CallData: tsData},
+		{Target: d2.address, AllowFailure: true, CallData: taData},
 	}, nil
 }
 

@@ -133,8 +133,8 @@ func (bb *BurrBearLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("burrbear: pack getPoolTokens: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: bb.poolAddress, AllowFailure: false, CallData: totalSupplyData},
-		{Target: common.HexToAddress(bb.config.VaultContract), AllowFailure: false, CallData: poolTokensData},
+		{Target: bb.poolAddress, AllowFailure: true, CallData: totalSupplyData},
+		{Target: common.HexToAddress(bb.config.VaultContract), AllowFailure: true, CallData: poolTokensData},
 	}, nil
 }
 

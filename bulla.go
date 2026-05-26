@@ -131,8 +131,8 @@ func (b *BullaLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("bulla: pack getTotalAmounts: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: b.address, AllowFailure: false, CallData: tsData},
-		{Target: b.address, AllowFailure: false, CallData: taData},
+		{Target: b.address, AllowFailure: true, CallData: tsData},
+		{Target: b.address, AllowFailure: true, CallData: taData},
 	}, nil
 }
 

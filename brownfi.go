@@ -122,8 +122,8 @@ func (w *BrownFiLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("brownfi: pack getReserves: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: w.address, AllowFailure: false, CallData: tsData},
-		{Target: w.address, AllowFailure: false, CallData: balData},
+		{Target: w.address, AllowFailure: true, CallData: tsData},
+		{Target: w.address, AllowFailure: true, CallData: balData},
 	}, nil
 }
 

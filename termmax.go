@@ -111,8 +111,8 @@ func (t *TermMaxVaultPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("termmax: pack totalAssets: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: t.address, AllowFailure: false, CallData: tsData},
-		{Target: t.address, AllowFailure: false, CallData: taData},
+		{Target: t.address, AllowFailure: true, CallData: tsData},
+		{Target: t.address, AllowFailure: true, CallData: taData},
 	}, nil
 }
 

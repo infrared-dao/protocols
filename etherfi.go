@@ -128,8 +128,8 @@ func (e *EtherfiLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("etherfi: pack getRate: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: e.address, AllowFailure: false, CallData: tsData},
-		{Target: common.HexToAddress(e.config.Accountant), AllowFailure: false, CallData: rateData},
+		{Target: e.address, AllowFailure: true, CallData: tsData},
+		{Target: common.HexToAddress(e.config.Accountant), AllowFailure: true, CallData: rateData},
 	}, nil
 }
 

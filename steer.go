@@ -123,8 +123,8 @@ func (s *SteerLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("steer: pack getTotalAmounts: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: s.address, AllowFailure: false, CallData: tsData},
-		{Target: s.address, AllowFailure: false, CallData: gtaData},
+		{Target: s.address, AllowFailure: true, CallData: tsData},
+		{Target: s.address, AllowFailure: true, CallData: gtaData},
 	}, nil
 }
 

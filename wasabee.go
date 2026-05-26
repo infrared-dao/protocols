@@ -123,8 +123,8 @@ func (w *WasabeeLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("wasabee: pack getTotalAmounts: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: w.address, AllowFailure: false, CallData: tsData},
-		{Target: w.address, AllowFailure: false, CallData: gtaData},
+		{Target: w.address, AllowFailure: true, CallData: tsData},
+		{Target: w.address, AllowFailure: true, CallData: gtaData},
 	}, nil
 }
 

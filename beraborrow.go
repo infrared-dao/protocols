@@ -177,9 +177,9 @@ func (b *BeraBorrowLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 			return nil, fmt.Errorf("beraborrow: pack sNECT totalAssets: %w", err)
 		}
 		return []multicall3.Call3{
-			{Target: b.LPTAddress, AllowFailure: false, CallData: lpTotalSupplyData},
-			{Target: b.LPTAddress, AllowFailure: false, CallData: getPriceData},    // sNECT is at LPTAddress
-			{Target: b.LPTAddress, AllowFailure: false, CallData: totalAssetsData}, // sNECT is at LPTAddress
+			{Target: b.LPTAddress, AllowFailure: true, CallData: lpTotalSupplyData},
+			{Target: b.LPTAddress, AllowFailure: true, CallData: getPriceData},    // sNECT is at LPTAddress
+			{Target: b.LPTAddress, AllowFailure: true, CallData: totalAssetsData}, // sNECT is at LPTAddress
 		}, nil
 	}
 
@@ -198,9 +198,9 @@ func (b *BeraBorrowLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 	}
 	cicvAddress := common.HexToAddress(b.config.ColVaultAddress)
 	return []multicall3.Call3{
-		{Target: b.LPTAddress, AllowFailure: false, CallData: lpTotalSupplyData},
-		{Target: cicvAddress, AllowFailure: false, CallData: fetchPriceData},
-		{Target: cicvAddress, AllowFailure: false, CallData: cdpTotalSupplyData},
+		{Target: b.LPTAddress, AllowFailure: true, CallData: lpTotalSupplyData},
+		{Target: cicvAddress, AllowFailure: true, CallData: fetchPriceData},
+		{Target: cicvAddress, AllowFailure: true, CallData: cdpTotalSupplyData},
 	}, nil
 }
 

@@ -111,8 +111,8 @@ func (d *DolomiteLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("dolomite: pack totalAssets: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: d.address, AllowFailure: false, CallData: tsData},
-		{Target: d.address, AllowFailure: false, CallData: taData},
+		{Target: d.address, AllowFailure: true, CallData: tsData},
+		{Target: d.address, AllowFailure: true, CallData: taData},
 	}, nil
 }
 

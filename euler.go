@@ -111,8 +111,8 @@ func (e *EulerLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("euler: pack totalAssets: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: e.address, AllowFailure: false, CallData: tsData},
-		{Target: e.address, AllowFailure: false, CallData: taData},
+		{Target: e.address, AllowFailure: true, CallData: tsData},
+		{Target: e.address, AllowFailure: true, CallData: taData},
 	}, nil
 }
 

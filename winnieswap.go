@@ -122,8 +122,8 @@ func (w *WinnieSwapLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
 		return nil, fmt.Errorf("winnieswap: pack getUnderlyingBalances: %w", err)
 	}
 	return []multicall3.Call3{
-		{Target: w.address, AllowFailure: false, CallData: tsData},
-		{Target: w.address, AllowFailure: false, CallData: gubData},
+		{Target: w.address, AllowFailure: true, CallData: tsData},
+		{Target: w.address, AllowFailure: true, CallData: gubData},
 	}, nil
 }
 
