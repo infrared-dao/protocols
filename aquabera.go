@@ -12,11 +12,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
 
 var _ Protocol = &AquaBeraLPPriceProvider{}
+var _ BatchablePriceProvider = &AquaBeraLPPriceProvider{}
 
 type AquaBeraConfig struct {
 	Token0      string `json:"token0"`
@@ -85,25 +87,113 @@ func (a *AquaBeraLPPriceProvider) Initialize(ctx context.Context, client bind.Co
 }
 
 // LPTokenPrice returns the current price of the protocol's LP token in USD.
+//
+// Legacy path — issues two sequential eth_calls. Batchable path
+// (PriceReads + ComputePrice) dispatches both as one Multicall3.aggregate3.
+// Both paths share computeLPPriceFromReads so prices match for identical
+// inputs.
 func (a *AquaBeraLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	// Fetch total supply
 	totalSupply, err := a.getTotalSupply(ctx)
 	if err != nil {
 		return "", err
 	}
-
-	// Avoid division by zero
-	if totalSupply.Sign() == 0 {
-		err := errors.New("totalSupply is zero, cannot calculate LP token price")
-		a.logger.Error().Err(err).Msg("Invalid totalSupply")
-		return "", err
-	}
-
-	totalValue, err := a.totalValue(ctx)
+	amount0, amount1, err := a.getUnderlyingBalances(ctx)
 	if err != nil {
 		return "", err
 	}
+	price, err := a.computeLPPriceFromReads(totalSupply, Balances{Amount0: amount0, Amount1: amount1})
+	if err != nil {
+		return "", err
+	}
+	return price.StringFixed(roundingDecimals), nil
+}
 
+// PriceReads returns the two calls (totalSupply + getTotalAmounts) targeting
+// the AquaBera contract.
+func (a *AquaBeraLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	abi, err := sc.AquaBeraMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("aquabera: get ABI: %w", err)
+	}
+	tsData, err := abi.Pack("totalSupply")
+	if err != nil {
+		return nil, fmt.Errorf("aquabera: pack totalSupply: %w", err)
+	}
+	balData, err := abi.Pack("getTotalAmounts")
+	if err != nil {
+		return nil, fmt.Errorf("aquabera: pack getTotalAmounts: %w", err)
+	}
+	return []multicall3.Call3{
+		{Target: a.address, AllowFailure: true, CallData: tsData},
+		{Target: a.address, AllowFailure: true, CallData: balData},
+	}, nil
+}
+
+// ComputePrice decodes the two responses (totalSupply + balances) and
+// computes the LP token price. Pure compute.
+func (a *AquaBeraLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 2 {
+		return decimal.Zero, fmt.Errorf("aquabera: expected 2 responses, got %d", len(responses))
+	}
+	if !responses[0].Success {
+		return decimal.Zero, errors.New("aquabera: totalSupply call reverted in multicall")
+	}
+	if !responses[1].Success {
+		return decimal.Zero, errors.New("aquabera: getTotalAmounts call reverted in multicall")
+	}
+
+	abi, err := sc.AquaBeraMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("aquabera: get ABI: %w", err)
+	}
+	tsOut, err := abi.Methods["totalSupply"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("aquabera: unpack totalSupply: %w", err)
+	}
+	totalSupply, ok := tsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("aquabera: totalSupply type %T, want *big.Int", tsOut[0])
+	}
+
+	balOut, err := abi.Methods["getTotalAmounts"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("aquabera: unpack getTotalAmounts: %w", err)
+	}
+	if len(balOut) < 2 {
+		return decimal.Zero, fmt.Errorf("aquabera: getTotalAmounts returned %d values, want >=2", len(balOut))
+	}
+	t0, ok := balOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("aquabera: total0 type %T, want *big.Int", balOut[0])
+	}
+	t1, ok := balOut[1].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("aquabera: total1 type %T, want *big.Int", balOut[1])
+	}
+
+	return a.computeLPPriceFromReads(totalSupply, Balances{Amount0: t0, Amount1: t1})
+}
+
+// computeLPPriceFromReads is the shared math between legacy LPTokenPrice
+// and batchable ComputePrice. Identical formula to Kodiak's: sum of
+// (balance × price) / totalSupply.
+func (a *AquaBeraLPPriceProvider) computeLPPriceFromReads(totalSupply *big.Int, balances Balances) (decimal.Decimal, error) {
+	if totalSupply.Sign() == 0 {
+		err := errors.New("totalSupply is zero, cannot calculate LP token price")
+		a.logger.Error().Err(err).Msg("Invalid totalSupply")
+		return decimal.Zero, err
+	}
+	price0, err := a.getPrice(a.config.Token0)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	price1, err := a.getPrice(a.config.Token1)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	amount0Decimal := NormalizeAmount(balances.Amount0, price0.Decimals)
+	amount1Decimal := NormalizeAmount(balances.Amount1, price1.Decimals)
+	totalValue := amount0Decimal.Mul(price0.Price).Add(amount1Decimal.Mul(price1.Price))
 	totalSupplyDecimal := NormalizeAmount(totalSupply, a.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
 
@@ -113,7 +203,7 @@ func (a *AquaBeraLPPriceProvider) LPTokenPrice(ctx context.Context) (string, err
 		Str("pricePerToken", pricePerToken.String()).
 		Msg("LP token price calculated successfully")
 
-	return pricePerToken.StringFixed(roundingDecimals), nil
+	return pricePerToken, nil
 }
 
 // TVL returns the Total Value Locked in the protocol in USD.

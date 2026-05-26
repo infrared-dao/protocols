@@ -11,11 +11,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
 
 var _ Protocol = &WeberaLPPriceProvider{}
+var _ BatchablePriceProvider = &WeberaLPPriceProvider{}
 
 type WeberaConfig struct {
 	Asset       string `json:"token0"`
@@ -83,28 +85,85 @@ func (w *WeberaLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error
 	if err != nil {
 		return "", err
 	}
-
-	if ts.Cmp(big.NewInt(0)) == 0 {
-		err = fmt.Errorf("total supply is zero")
-		w.logger.Error().Err(err).Msg("failed to fetch total supply")
-		return "", err
+	opts := &bind.CallOpts{Context: ctx, BlockNumber: w.block}
+	ta, err := w.contract.TotalAssets(opts)
+	if err != nil {
+		return "", fmt.Errorf("webera: totalAssets: %w", err)
 	}
-
-	tvl, err := w.tvl(ctx)
+	price, err := w.computeLPPriceFromReads(ts, ta)
 	if err != nil {
 		return "", err
 	}
-
-	tsd := NormalizeAmount(ts, w.config.LPTDecimals)
-	price := tvl.Div(tsd)
-
-	w.logger.Debug().
-		Str("totalValue", tvl.String()).
-		Str("totalSupply", ts.String()).
-		Str("pricePerToken", price.String()).
-		Msg("LP token price calculated successfully")
-
 	return price.StringFixed(roundingDecimals), nil
+}
+
+func (w *WeberaLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	abi, err := sc.WeberaVaultMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("webera: ABI: %w", err)
+	}
+	tsData, err := abi.Pack("totalSupply")
+	if err != nil {
+		return nil, fmt.Errorf("webera: pack totalSupply: %w", err)
+	}
+	taData, err := abi.Pack("totalAssets")
+	if err != nil {
+		return nil, fmt.Errorf("webera: pack totalAssets: %w", err)
+	}
+	return []multicall3.Call3{
+		{Target: w.address, AllowFailure: true, CallData: tsData},
+		{Target: w.address, AllowFailure: true, CallData: taData},
+	}, nil
+}
+
+func (w *WeberaLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 2 {
+		return decimal.Zero, fmt.Errorf("webera: expected 2 responses, got %d", len(responses))
+	}
+	for i, r := range responses {
+		if !r.Success {
+			return decimal.Zero, fmt.Errorf("webera: sub-call %d reverted", i)
+		}
+	}
+	abi, err := sc.WeberaVaultMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("webera: ABI: %w", err)
+	}
+	tsOut, err := abi.Methods["totalSupply"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("webera: unpack totalSupply: %w", err)
+	}
+	totalSupply, ok := tsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("webera: totalSupply type %T", tsOut[0])
+	}
+	taOut, err := abi.Methods["totalAssets"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("webera: unpack totalAssets: %w", err)
+	}
+	totalAssets, ok := taOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("webera: totalAssets type %T", taOut[0])
+	}
+	return w.computeLPPriceFromReads(totalSupply, totalAssets)
+}
+
+func (w *WeberaLPPriceProvider) computeLPPriceFromReads(totalSupply, totalAssets *big.Int) (decimal.Decimal, error) {
+	if totalSupply.Sign() == 0 {
+		err := fmt.Errorf("total supply is zero")
+		w.logger.Error().Err(err).Msg("invalid totalSupply")
+		return decimal.Zero, err
+	}
+	assetPrice, err := w.getPrice(w.config.Asset)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	assetAmountDecimal := NormalizeAmount(totalAssets, assetPrice.Decimals)
+	tvl := assetAmountDecimal.Mul(assetPrice.Price)
+	tsd := NormalizeAmount(totalSupply, w.config.LPTDecimals)
+	pricePerToken := tvl.Div(tsd)
+	w.logger.Debug().Str("pricePerToken", pricePerToken.String()).Msg("LP token price calculated successfully")
+	return pricePerToken, nil
 }
 
 func (w *WeberaLPPriceProvider) TVL(ctx context.Context) (string, error) {

@@ -3,6 +3,7 @@ package protocols
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -11,11 +12,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
 
 var _ Protocol = &BendLPPriceProvider{}
+var _ BatchablePriceProvider = &BendLPPriceProvider{}
 
 type BendConfig struct {
 	Asset       string `json:"token0"`
@@ -78,33 +81,104 @@ func (w *BendLPPriceProvider) Initialize(ctx context.Context, client bind.Contra
 	return nil
 }
 
+// LPTokenPrice — legacy path. Reads totalSupply + totalAssets sequentially.
+// Batchable equivalent (PriceReads + ComputePrice) dispatches both in one
+// Multicall3.aggregate3. Shared math via computeLPPriceFromReads.
 func (w *BendLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	ts, err := w.getTotalSupply(ctx)
 	if err != nil {
 		return "", err
 	}
-
-	if ts.Cmp(big.NewInt(0)) == 0 {
-		err = fmt.Errorf("total supply is zero")
-		w.logger.Error().Err(err).Msg("failed to fetch total supply")
+	opts := &bind.CallOpts{Context: ctx, BlockNumber: w.block}
+	totalAssets, err := w.contract.TotalAssets(opts)
+	if err != nil {
+		w.logger.Error().Err(err).Msg("failed to fetch totalAssets")
 		return "", err
 	}
-
-	tvl, err := w.tvl(ctx)
+	price, err := w.computeLPPriceFromReads(ts, totalAssets)
 	if err != nil {
 		return "", err
 	}
+	return price.StringFixed(roundingDecimals), nil
+}
 
-	tsd := NormalizeAmount(ts, w.config.LPTDecimals)
-	price := tvl.Div(tsd)
+// PriceReads returns the two calls (totalSupply + totalAssets) against the
+// Bend vault contract.
+func (w *BendLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	abi, err := sc.BendVaultMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("bend: get ABI: %w", err)
+	}
+	tsData, err := abi.Pack("totalSupply")
+	if err != nil {
+		return nil, fmt.Errorf("bend: pack totalSupply: %w", err)
+	}
+	taData, err := abi.Pack("totalAssets")
+	if err != nil {
+		return nil, fmt.Errorf("bend: pack totalAssets: %w", err)
+	}
+	return []multicall3.Call3{
+		{Target: w.address, AllowFailure: true, CallData: tsData},
+		{Target: w.address, AllowFailure: true, CallData: taData},
+	}, nil
+}
+
+// ComputePrice decodes both responses and computes the LP price.
+func (w *BendLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 2 {
+		return decimal.Zero, fmt.Errorf("bend: expected 2 responses, got %d", len(responses))
+	}
+	for i, r := range responses {
+		if !r.Success {
+			return decimal.Zero, fmt.Errorf("bend: sub-call %d reverted in multicall", i)
+		}
+	}
+	abi, err := sc.BendVaultMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("bend: get ABI: %w", err)
+	}
+	tsOut, err := abi.Methods["totalSupply"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("bend: unpack totalSupply: %w", err)
+	}
+	totalSupply, ok := tsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("bend: totalSupply type %T", tsOut[0])
+	}
+	taOut, err := abi.Methods["totalAssets"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("bend: unpack totalAssets: %w", err)
+	}
+	totalAssets, ok := taOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("bend: totalAssets type %T", taOut[0])
+	}
+	return w.computeLPPriceFromReads(totalSupply, totalAssets)
+}
+
+// computeLPPriceFromReads — shared math: tvl = totalAssets × assetPrice;
+// price = tvl / totalSupply.
+func (w *BendLPPriceProvider) computeLPPriceFromReads(totalSupply, totalAssets *big.Int) (decimal.Decimal, error) {
+	if totalSupply.Sign() == 0 {
+		err := errors.New("total supply is zero")
+		w.logger.Error().Err(err).Msg("invalid totalSupply")
+		return decimal.Zero, err
+	}
+	assetPrice, err := w.getPrice(w.config.Asset)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	assetAmountDecimal := NormalizeAmount(totalAssets, assetPrice.Decimals)
+	tvl := assetAmountDecimal.Mul(assetPrice.Price)
+	tsd := NormalizeAmount(totalSupply, w.config.LPTDecimals)
+	pricePerToken := tvl.Div(tsd)
 
 	w.logger.Debug().
 		Str("totalValue", tvl.String()).
-		Str("totalSupply", ts.String()).
-		Str("pricePerToken", price.String()).
+		Str("totalSupply", totalSupply.String()).
+		Str("pricePerToken", pricePerToken.String()).
 		Msg("LP token price calculated successfully")
-
-	return price.StringFixed(roundingDecimals), nil
+	return pricePerToken, nil
 }
 
 func (w *BendLPPriceProvider) TVL(ctx context.Context) (string, error) {

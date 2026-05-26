@@ -12,11 +12,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
 
 var _ Protocol = &BullaLPPriceProvider{}
+var _ BatchablePriceProvider = &BullaLPPriceProvider{}
 
 // The bulla abi given is a contract type called hypervisor which manages automated pools
 // For other non-automated pools we would need a slightly different adapter because the function
@@ -97,36 +99,100 @@ func (b *BullaLPPriceProvider) Initialize(ctx context.Context, client bind.Contr
 	return nil
 }
 
-// LPTokenPrice returns the current price of the protocol's LP token in USD.
+// LPTokenPrice — legacy path; batchable via PriceReads+ComputePrice.
 func (b *BullaLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	// Fetch total supply
 	totalSupply, err := b.getTotalSupply(ctx)
 	if err != nil {
 		return "", err
 	}
-
-	// Avoid division by zero
-	if totalSupply.Sign() == 0 {
-		err := errors.New("totalSupply is zero, cannot calculate LP token price")
-		b.logger.Error().Err(err).Msg("Invalid totalSupply")
-		return "", err
+	opts := &bind.CallOpts{Context: ctx, BlockNumber: b.block}
+	ta, err := b.contract.GetTotalAmounts(opts)
+	if err != nil {
+		return "", fmt.Errorf("bulla: getTotalAmounts: %w", err)
 	}
-
-	totalValue, err := b.totalValue(ctx)
+	price, err := b.computeLPPriceFromReads(totalSupply, Balances{Amount0: ta.Total0, Amount1: ta.Total1})
 	if err != nil {
 		return "", err
 	}
+	return price.StringFixed(roundingDecimals), nil
+}
 
+func (b *BullaLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	abi, err := sc.BullaMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("bulla: ABI: %w", err)
+	}
+	tsData, err := abi.Pack("totalSupply")
+	if err != nil {
+		return nil, fmt.Errorf("bulla: pack totalSupply: %w", err)
+	}
+	taData, err := abi.Pack("getTotalAmounts")
+	if err != nil {
+		return nil, fmt.Errorf("bulla: pack getTotalAmounts: %w", err)
+	}
+	return []multicall3.Call3{
+		{Target: b.address, AllowFailure: true, CallData: tsData},
+		{Target: b.address, AllowFailure: true, CallData: taData},
+	}, nil
+}
+
+func (b *BullaLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 2 {
+		return decimal.Zero, fmt.Errorf("bulla: expected 2 responses, got %d", len(responses))
+	}
+	for i, r := range responses {
+		if !r.Success {
+			return decimal.Zero, fmt.Errorf("bulla: sub-call %d reverted", i)
+		}
+	}
+	abi, err := sc.BullaMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("bulla: ABI: %w", err)
+	}
+	tsOut, err := abi.Methods["totalSupply"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("bulla: unpack totalSupply: %w", err)
+	}
+	totalSupply, ok := tsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("bulla: totalSupply type %T", tsOut[0])
+	}
+	taOut, err := abi.Methods["getTotalAmounts"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("bulla: unpack getTotalAmounts: %w", err)
+	}
+	t0, ok := taOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("bulla: total0 type %T", taOut[0])
+	}
+	t1, ok := taOut[1].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("bulla: total1 type %T", taOut[1])
+	}
+	return b.computeLPPriceFromReads(totalSupply, Balances{Amount0: t0, Amount1: t1})
+}
+
+func (b *BullaLPPriceProvider) computeLPPriceFromReads(totalSupply *big.Int, balances Balances) (decimal.Decimal, error) {
+	if totalSupply.Sign() == 0 {
+		err := errors.New("totalSupply is zero, cannot calculate LP token price")
+		b.logger.Error().Err(err).Msg("Invalid totalSupply")
+		return decimal.Zero, err
+	}
+	price0, err := b.getPrice(b.config.Token0)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	price1, err := b.getPrice(b.config.Token1)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	amount0Decimal := NormalizeAmount(balances.Amount0, price0.Decimals)
+	amount1Decimal := NormalizeAmount(balances.Amount1, price1.Decimals)
+	totalValue := amount0Decimal.Mul(price0.Price).Add(amount1Decimal.Mul(price1.Price))
 	totalSupplyDecimal := NormalizeAmount(totalSupply, b.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
-
-	b.logger.Debug().
-		Str("totalValue", totalValue.String()).
-		Str("totalSupply", totalSupplyDecimal.String()).
-		Str("pricePerToken", pricePerToken.String()).
-		Msg("LP token price calculated successfully")
-
-	return pricePerToken.StringFixed(roundingDecimals), nil
+	b.logger.Debug().Str("pricePerToken", pricePerToken.String()).Msg("LP token price calculated successfully")
+	return pricePerToken, nil
 }
 
 // TVL returns the Total Value Locked in the protocol in USD.

@@ -12,11 +12,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
 
 var _ Protocol = &BurrBearLPPriceProvider{}
+var _ BatchablePriceProvider = &BurrBearLPPriceProvider{}
 
 // BurrBear is based on BalancerV2 which is the same codebase which BEX uses on mainnet
 // Decided to implement it as a parallel code instead of a wrapper so it can get in config
@@ -87,41 +89,130 @@ func (bb *BurrBearLPPriceProvider) Initialize(ctx context.Context, client bind.C
 	return nil
 }
 
-// LPTokenPrice returns the current price of the protocol's LP token in USD
+// LPTokenPrice returns the current price of the protocol's LP token in USD.
+//
+// Legacy path — issues two sequential eth_calls (pool.getActualSupply +
+// vault.getPoolTokens). The batchable path (PriceReads + ComputePrice)
+// dispatches both as one Multicall3.aggregate3. Both paths share
+// computeLPPriceFromReads so prices match for the same inputs.
 func (bb *BurrBearLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	opts := &bind.CallOpts{
 		Context:     ctx,
 		BlockNumber: bb.block,
 	}
-
-	// Using GetActualSupply because this is how much is circulating for pools which lock up some LP tokens
 	totalSupply, err := bb.poolContract.GetActualSupply(opts)
 	if err != nil {
 		return "", err
 	}
-
-	// Avoid division by zero
-	if totalSupply.Sign() == 0 {
-		err := errors.New("totalSupply is zero, cannot calculate LP token price")
-		bb.logger.Error().Err(err).Msg("Invalid totalSupply")
-		return "", err
-	}
-
-	totalValue, err := bb.totalValue(ctx)
+	balances, err := bb.getUnderlyingBalances(ctx)
 	if err != nil {
 		return "", err
 	}
+	price, err := bb.computeLPPriceFromReads(totalSupply, balances)
+	if err != nil {
+		return "", err
+	}
+	return price.StringFixed(roundingDecimals), nil
+}
 
+func (bb *BurrBearLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	poolABI, err := sc.BalancerBasePoolMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("burrbear: pool ABI: %w", err)
+	}
+	totalSupplyData, err := poolABI.Pack("getActualSupply")
+	if err != nil {
+		return nil, fmt.Errorf("burrbear: pack getActualSupply: %w", err)
+	}
+	vaultABI, err := sc.BalancerVaultMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("burrbear: vault ABI: %w", err)
+	}
+	poolTokensData, err := vaultABI.Pack("getPoolTokens", bb.config.PoolID)
+	if err != nil {
+		return nil, fmt.Errorf("burrbear: pack getPoolTokens: %w", err)
+	}
+	return []multicall3.Call3{
+		{Target: bb.poolAddress, AllowFailure: true, CallData: totalSupplyData},
+		{Target: common.HexToAddress(bb.config.VaultContract), AllowFailure: true, CallData: poolTokensData},
+	}, nil
+}
+
+func (bb *BurrBearLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 2 {
+		return decimal.Zero, fmt.Errorf("burrbear: expected 2 responses, got %d", len(responses))
+	}
+	if !responses[0].Success {
+		return decimal.Zero, errors.New("burrbear: getActualSupply call reverted in multicall")
+	}
+	if !responses[1].Success {
+		return decimal.Zero, errors.New("burrbear: getPoolTokens call reverted in multicall")
+	}
+	poolABI, err := sc.BalancerBasePoolMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("burrbear: pool ABI: %w", err)
+	}
+	tsOut, err := poolABI.Methods["getActualSupply"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("burrbear: unpack getActualSupply: %w", err)
+	}
+	totalSupply, ok := tsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("burrbear: totalSupply type %T", tsOut[0])
+	}
+	vaultABI, err := sc.BalancerVaultMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("burrbear: vault ABI: %w", err)
+	}
+	ptOut, err := vaultABI.Methods["getPoolTokens"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("burrbear: unpack getPoolTokens: %w", err)
+	}
+	if len(ptOut) < 2 {
+		return decimal.Zero, fmt.Errorf("burrbear: getPoolTokens returned %d values, want >=2", len(ptOut))
+	}
+	tokens, ok := ptOut[0].([]common.Address)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("burrbear: tokens type %T", ptOut[0])
+	}
+	rawBalances, ok := ptOut[1].([]*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("burrbear: balances type %T", ptOut[1])
+	}
+	if len(tokens) != len(rawBalances) {
+		return decimal.Zero, fmt.Errorf("burrbear: tokens (%d) and balances (%d) length mismatch", len(tokens), len(rawBalances))
+	}
+	balances := make(map[string]*big.Int, len(tokens))
+	poolAddressLower := strings.ToLower(bb.poolAddress.Hex())
+	for i, t := range tokens {
+		token := strings.ToLower(t.Hex())
+		if token == poolAddressLower {
+			continue
+		}
+		balances[token] = rawBalances[i]
+	}
+	return bb.computeLPPriceFromReads(totalSupply, balances)
+}
+
+func (bb *BurrBearLPPriceProvider) computeLPPriceFromReads(totalSupply *big.Int, balances map[string]*big.Int) (decimal.Decimal, error) {
+	if totalSupply.Sign() == 0 {
+		err := errors.New("totalSupply is zero, cannot calculate LP token price")
+		bb.logger.Error().Err(err).Msg("Invalid totalSupply")
+		return decimal.Zero, err
+	}
+	totalValue := decimal.Zero
+	for token, balance := range balances {
+		price, err := bb.getPrice(token)
+		if err != nil {
+			return decimal.Zero, err
+		}
+		balanceDecimal := NormalizeAmount(balance, price.Decimals)
+		totalValue = totalValue.Add(balanceDecimal.Mul(price.Price))
+	}
 	totalSupplyDecimal := NormalizeAmount(totalSupply, bb.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
-
-	bb.logger.Debug().
-		Str("totalValue", totalValue.String()).
-		Str("totalSupply", totalSupplyDecimal.String()).
-		Str("pricePerToken", pricePerToken.String()).
-		Msg("LP token price calculated successfully")
-
-	return pricePerToken.StringFixed(roundingDecimals), nil
+	bb.logger.Debug().Str("pricePerToken", pricePerToken.String()).Msg("LP token price calculated successfully")
+	return pricePerToken, nil
 }
 
 // TVL returns the Total Value Locked in the pool in USD cents (1 USD = 100 cents).

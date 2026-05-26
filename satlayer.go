@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -22,6 +23,7 @@ import (
 // Therefore, this adapter is literally just a pass through for the LP price
 
 var _ Protocol = &SatLayerLPPriceProvider{}
+var _ BatchablePriceProvider = &SatLayerLPPriceProvider{}
 
 type SatLayerConfig struct {
 	Asset       string `json:"asset"`
@@ -91,16 +93,31 @@ func (s *SatLayerLPPriceProvider) Initialize(ctx context.Context, client bind.Co
 }
 
 func (s *SatLayerLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	price, err := s.getPrice(s.config.Asset)
+	price, err := s.computeLPPriceFromReads()
 	if err != nil {
 		return "", err
 	}
+	return price.StringFixed(roundingDecimals), nil
+}
 
-	s.logger.Debug().
-		Str("pricePerToken", price.Price.String()).
-		Msg("LP token price calculated successfully")
+// PriceReads returns no on-chain calls: satSolvBTC.BERA is a 1:1 receipt of
+// the underlying asset whose USD price is fetched off-chain (already in
+// priceMap). ComputePrice ignores its inputs.
+func (s *SatLayerLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	return nil, nil
+}
 
-	return price.Price.StringFixed(roundingDecimals), nil
+func (s *SatLayerLPPriceProvider) ComputePrice(_ []multicall3.Result3) (decimal.Decimal, error) {
+	return s.computeLPPriceFromReads()
+}
+
+func (s *SatLayerLPPriceProvider) computeLPPriceFromReads() (decimal.Decimal, error) {
+	price, err := s.getPrice(s.config.Asset)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	s.logger.Debug().Str("pricePerToken", price.Price.String()).Msg("LP token price calculated successfully")
+	return price.Price, nil
 }
 
 func (s *SatLayerLPPriceProvider) TVL(ctx context.Context) (string, error) {

@@ -11,11 +11,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
 
 var _ Protocol = &EtherfiLPPriceProvider{}
+var _ BatchablePriceProvider = &EtherfiLPPriceProvider{}
 
 var accountantContracts = []string{
 	"0x88ea516DCb9f79CAFA9D0d19909A4dbd7B6890c8",
@@ -92,32 +94,104 @@ func (e *EtherfiLPPriceProvider) Initialize(ctx context.Context, client bind.Con
 }
 
 func (e *EtherfiLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	ts, err := e.getTotalSupply(ctx)
+	opts := &bind.CallOpts{Context: ctx, BlockNumber: e.block}
+	ts, err := e.contract.TotalSupply(opts)
+	if err != nil {
+		return "", fmt.Errorf("etherfi: totalSupply: %w", err)
+	}
+	rate, err := e.accountant.GetRate(opts)
+	if err != nil {
+		return "", fmt.Errorf("etherfi: accountant.getRate: %w", err)
+	}
+	price, err := e.computeLPPriceFromReads(ts, rate)
 	if err != nil {
 		return "", err
 	}
-
-	if ts.Cmp(big.NewInt(0)) == 0 {
-		err = fmt.Errorf("total supply is zero")
-		e.logger.Error().Err(err).Msg("failed to fetch total supply")
-		return "", err
-	}
-
-	tvl, err := e.tvl(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	tsd := NormalizeAmount(ts, e.config.LPTDecimals)
-	price := tvl.Div(tsd)
-
-	e.logger.Debug().
-		Str("totalValue", tvl.String()).
-		Str("totalSupply", ts.String()).
-		Str("pricePerToken", price.String()).
-		Msg("LP token price calculated successfully")
-
 	return price.StringFixed(roundingDecimals), nil
+}
+
+func (e *EtherfiLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	vaultABI, err := sc.EtherfiVaultMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("etherfi: vault ABI: %w", err)
+	}
+	tsData, err := vaultABI.Pack("totalSupply")
+	if err != nil {
+		return nil, fmt.Errorf("etherfi: pack totalSupply: %w", err)
+	}
+	accABI, err := sc.EtherfiAccountantMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("etherfi: accountant ABI: %w", err)
+	}
+	rateData, err := accABI.Pack("getRate")
+	if err != nil {
+		return nil, fmt.Errorf("etherfi: pack getRate: %w", err)
+	}
+	return []multicall3.Call3{
+		{Target: e.address, AllowFailure: true, CallData: tsData},
+		{Target: common.HexToAddress(e.config.Accountant), AllowFailure: true, CallData: rateData},
+	}, nil
+}
+
+func (e *EtherfiLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 2 {
+		return decimal.Zero, fmt.Errorf("etherfi: expected 2 responses, got %d", len(responses))
+	}
+	for i, r := range responses {
+		if !r.Success {
+			return decimal.Zero, fmt.Errorf("etherfi: sub-call %d reverted", i)
+		}
+	}
+	vaultABI, err := sc.EtherfiVaultMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("etherfi: vault ABI: %w", err)
+	}
+	tsOut, err := vaultABI.Methods["totalSupply"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("etherfi: unpack totalSupply: %w", err)
+	}
+	totalSupply, ok := tsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("etherfi: totalSupply type %T", tsOut[0])
+	}
+	accABI, err := sc.EtherfiAccountantMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("etherfi: accountant ABI: %w", err)
+	}
+	rateOut, err := accABI.Methods["getRate"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("etherfi: unpack getRate: %w", err)
+	}
+	rate, ok := rateOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("etherfi: rate type %T", rateOut[0])
+	}
+	return e.computeLPPriceFromReads(totalSupply, rate)
+}
+
+func (e *EtherfiLPPriceProvider) computeLPPriceFromReads(totalSupply, rate *big.Int) (decimal.Decimal, error) {
+	if totalSupply.Sign() == 0 {
+		err := fmt.Errorf("total supply is zero")
+		e.logger.Error().Err(err).Msg("invalid totalSupply")
+		return decimal.Zero, err
+	}
+	assetPrice, err := e.getPrice(e.config.Asset)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	// Mirrors the legacy tvl()+LPTokenPrice combo: TVL normalizes the
+	// share supply by the underlying asset's decimals, while the divisor
+	// normalizes the same supply by LPTDecimals. The two cancel out the
+	// totalSupply factor and reduce to rate·assetPrice scaled by the
+	// LPTDecimals−assetDecimals delta — kept literal here so the batched
+	// path is bit-identical to the legacy path.
+	assetAmountDecimal := NormalizeAmount(totalSupply, assetPrice.Decimals)
+	rateDecimal := NormalizeAmount(rate, e.config.LPTDecimals)
+	tvl := assetAmountDecimal.Mul(rateDecimal).Mul(assetPrice.Price)
+	tsd := NormalizeAmount(totalSupply, e.config.LPTDecimals)
+	pricePerToken := tvl.Div(tsd)
+	e.logger.Debug().Str("pricePerToken", pricePerToken.String()).Msg("LP token price calculated successfully")
+	return pricePerToken, nil
 }
 
 func (e *EtherfiLPPriceProvider) TVL(ctx context.Context) (string, error) {

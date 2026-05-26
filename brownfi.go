@@ -12,12 +12,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
 
 // enforce interface adherence
 var _ Protocol = &BrownFiLPPriceProvider{}
+var _ BatchablePriceProvider = &BrownFiLPPriceProvider{}
 
 // Define core types for the BrownFi Adapter
 
@@ -89,36 +91,102 @@ func (w *BrownFiLPPriceProvider) Initialize(ctx context.Context, client bind.Con
 	return nil
 }
 
-// LPTokenPrice returns the current price of LP token in USD
+// LPTokenPrice — legacy path. Batchable: PriceReads + ComputePrice via Multicall3.
 func (w *BrownFiLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	// Fetch total supply
 	totalSupply, err := w.getTotalSupply(ctx)
 	if err != nil {
 		return "", err
 	}
-
-	// Avoid division by zero
-	if totalSupply.Sign() == 0 {
-		err := errors.New("totalSupply is zero, cannot calculate LP token price")
-		w.logger.Error().Err(err).Msg("Invalid totalSupply")
-		return "", err
-	}
-
-	totalValue, err := w.totalValue(ctx)
+	amount0, amount1, err := w.getBalances(ctx)
 	if err != nil {
 		return "", err
 	}
+	price, err := w.computeLPPriceFromReads(totalSupply, Balances{Amount0: amount0, Amount1: amount1})
+	if err != nil {
+		return "", err
+	}
+	return price.StringFixed(roundingDecimals), nil
+}
 
+func (w *BrownFiLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	abi, err := sc.BrownFiPoolMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("brownfi: ABI: %w", err)
+	}
+	tsData, err := abi.Pack("totalSupply")
+	if err != nil {
+		return nil, fmt.Errorf("brownfi: pack totalSupply: %w", err)
+	}
+	balData, err := abi.Pack("getReserves")
+	if err != nil {
+		return nil, fmt.Errorf("brownfi: pack getReserves: %w", err)
+	}
+	return []multicall3.Call3{
+		{Target: w.address, AllowFailure: true, CallData: tsData},
+		{Target: w.address, AllowFailure: true, CallData: balData},
+	}, nil
+}
+
+func (w *BrownFiLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 2 {
+		return decimal.Zero, fmt.Errorf("brownfi: expected 2 responses, got %d", len(responses))
+	}
+	for i, r := range responses {
+		if !r.Success {
+			return decimal.Zero, fmt.Errorf("brownfi: sub-call %d reverted", i)
+		}
+	}
+	abi, err := sc.BrownFiPoolMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("brownfi: ABI: %w", err)
+	}
+	tsOut, err := abi.Methods["totalSupply"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("brownfi: unpack totalSupply: %w", err)
+	}
+	totalSupply, ok := tsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("brownfi: totalSupply type %T", tsOut[0])
+	}
+	balOut, err := abi.Methods["getReserves"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("brownfi: unpack getReserves: %w", err)
+	}
+	if len(balOut) < 2 {
+		return decimal.Zero, fmt.Errorf("brownfi: getReserves returned %d values", len(balOut))
+	}
+	r0, ok := balOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("brownfi: reserve0 type %T", balOut[0])
+	}
+	r1, ok := balOut[1].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("brownfi: reserve1 type %T", balOut[1])
+	}
+	return w.computeLPPriceFromReads(totalSupply, Balances{Amount0: r0, Amount1: r1})
+}
+
+func (w *BrownFiLPPriceProvider) computeLPPriceFromReads(totalSupply *big.Int, balances Balances) (decimal.Decimal, error) {
+	if totalSupply.Sign() == 0 {
+		err := errors.New("totalSupply is zero, cannot calculate LP token price")
+		w.logger.Error().Err(err).Msg("Invalid totalSupply")
+		return decimal.Zero, err
+	}
+	price0, err := w.getPrice(w.config.Token0)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	price1, err := w.getPrice(w.config.Token1)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	amount0Decimal := NormalizeAmount(balances.Amount0, price0.Decimals)
+	amount1Decimal := NormalizeAmount(balances.Amount1, price1.Decimals)
+	totalValue := amount0Decimal.Mul(price0.Price).Add(amount1Decimal.Mul(price1.Price))
 	totalSupplyDecimal := NormalizeAmount(totalSupply, w.config.LPTDecimals)
 	pricePerToken := totalValue.Div(totalSupplyDecimal)
-
-	w.logger.Debug().
-		Str("totalValue", totalValue.String()).
-		Str("totalSupply", totalSupplyDecimal.String()).
-		Str("pricePerToken", pricePerToken.String()).
-		Msg("LP token price calculated successfully")
-
-	return pricePerToken.StringFixed(roundingDecimals), nil
+	w.logger.Debug().Str("pricePerToken", pricePerToken.String()).Msg("LP token price calculated successfully")
+	return pricePerToken, nil
 }
 
 // TVL returns the Total Value Locked in the vault as USD

@@ -11,9 +11,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
+
+var _ BatchablePriceProvider = &ConcreteLPPriceProvider{}
 
 var _ Protocol = &ConcreteLPPriceProvider{}
 
@@ -78,32 +81,93 @@ func (c *ConcreteLPPriceProvider) Initialize(ctx context.Context, client bind.Co
 	return nil
 }
 
+// LPTokenPrice — legacy path; batchable via PriceReads + ComputePrice.
 func (c *ConcreteLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	ts, err := c.getTotalSupply(ctx)
 	if err != nil {
 		return "", err
 	}
-
-	if ts.Cmp(big.NewInt(0)) == 0 {
-		// it's expected to temporarily have zero total supply
-		return "", ErrPriceNotReadyYet
+	opts := &bind.CallOpts{Context: ctx, BlockNumber: c.block}
+	ta, err := c.contract.TotalAssets(opts)
+	if err != nil {
+		c.logger.Error().Err(err).Msg("failed to fetch totalAssets")
+		return "", err
 	}
-
-	tvl, err := c.tvl(ctx)
+	price, err := c.computeLPPriceFromReads(ts, ta)
 	if err != nil {
 		return "", err
 	}
-
-	tsd := NormalizeAmount(ts, c.config.LPTDecimals)
-	price := tvl.Div(tsd)
-
-	c.logger.Debug().
-		Str("totalValue", tvl.String()).
-		Str("totalSupply", ts.String()).
-		Str("pricePerToken", price.String()).
-		Msg("LP token price calculated successfully")
-
 	return price.StringFixed(roundingDecimals), nil
+}
+
+func (c *ConcreteLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	abi, err := sc.ConcreteVaultMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("concrete: ABI: %w", err)
+	}
+	tsData, err := abi.Pack("totalSupply")
+	if err != nil {
+		return nil, fmt.Errorf("concrete: pack totalSupply: %w", err)
+	}
+	taData, err := abi.Pack("totalAssets")
+	if err != nil {
+		return nil, fmt.Errorf("concrete: pack totalAssets: %w", err)
+	}
+	return []multicall3.Call3{
+		{Target: c.address, AllowFailure: true, CallData: tsData},
+		{Target: c.address, AllowFailure: true, CallData: taData},
+	}, nil
+}
+
+func (c *ConcreteLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 2 {
+		return decimal.Zero, fmt.Errorf("concrete: expected 2 responses, got %d", len(responses))
+	}
+	for i, r := range responses {
+		if !r.Success {
+			return decimal.Zero, fmt.Errorf("concrete: sub-call %d reverted", i)
+		}
+	}
+	abi, err := sc.ConcreteVaultMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("concrete: ABI: %w", err)
+	}
+	tsOut, err := abi.Methods["totalSupply"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("concrete: unpack totalSupply: %w", err)
+	}
+	totalSupply, ok := tsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("concrete: totalSupply type %T", tsOut[0])
+	}
+	taOut, err := abi.Methods["totalAssets"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("concrete: unpack totalAssets: %w", err)
+	}
+	totalAssets, ok := taOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("concrete: totalAssets type %T", taOut[0])
+	}
+	return c.computeLPPriceFromReads(totalSupply, totalAssets)
+}
+
+// computeLPPriceFromReads — shared math: tvl = totalAssets * assetPrice;
+// price = tvl / totalSupply. Returns ErrPriceNotReadyYet on zero supply
+// (concrete-specific: temporary state expected on freshly-deployed vaults).
+func (c *ConcreteLPPriceProvider) computeLPPriceFromReads(totalSupply, totalAssets *big.Int) (decimal.Decimal, error) {
+	if totalSupply.Sign() == 0 {
+		return decimal.Zero, ErrPriceNotReadyYet
+	}
+	assetPrice, err := c.getPrice(c.config.Asset)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	assetAmountDecimal := NormalizeAmount(totalAssets, assetPrice.Decimals)
+	tvl := assetAmountDecimal.Mul(assetPrice.Price)
+	tsd := NormalizeAmount(totalSupply, c.config.LPTDecimals)
+	pricePerToken := tvl.Div(tsd)
+	c.logger.Debug().Str("pricePerToken", pricePerToken.String()).Msg("LP token price calculated successfully")
+	return pricePerToken, nil
 }
 
 func (c *ConcreteLPPriceProvider) TVL(ctx context.Context) (string, error) {

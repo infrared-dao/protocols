@@ -3,6 +3,7 @@ package protocols
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -10,11 +11,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
 
 var _ Protocol = &BeraBorrowLPPriceProvider{}
+var _ BatchablePriceProvider = &BeraBorrowLPPriceProvider{}
 
 // This adapter is for a very specific type of BeraBorrow token setup
 // InfraredWrapper type tokens are the LP Token in this case
@@ -45,6 +48,12 @@ type BeraBorrowLPPriceProvider struct {
 	lptContract   *sc.BeraBorrowIWCaller
 	cdpContract   *sc.BeraBorrowCICVCaller
 	snectContract *sc.BeraBorrowSNECTCaller
+
+	// snectAsset is cached after Initialize for the sNECT variant — needed
+	// as an argument to GetPrice. Caching here lets PriceReads describe its
+	// reads without a chained dependency (asset doesn't change for a given
+	// sNECT contract).
+	snectAsset common.Address
 }
 
 // NewBeraBorrowLPPriceProvider creates a new instance of the BeraBorrowLPPriceProvider.
@@ -89,6 +98,15 @@ func (b *BeraBorrowLPPriceProvider) Initialize(ctx context.Context, client bind.
 			b.logger.Error().Err(err).Msg("adapter init failed to instantiate BeraBorrow sNECT contract")
 			return err
 		}
+
+		// Cache the asset address (immutable for a given sNECT contract) so
+		// PriceReads can describe GetPrice(asset) without a chained read.
+		asset, err := b.snectContract.Asset(&bind.CallOpts{Context: ctx})
+		if err != nil {
+			b.logger.Error().Err(err).Msg("adapter init failed to fetch sNECT asset")
+			return err
+		}
+		b.snectAsset = asset
 	} else {
 		// Initialize the CICV contract from the address in the config -- not the IW contract from the LP token address
 		b.cdpContract, err = sc.NewBeraBorrowCICVCaller(common.HexToAddress(b.config.ColVaultAddress), client)
@@ -101,11 +119,22 @@ func (b *BeraBorrowLPPriceProvider) Initialize(ctx context.Context, client bind.
 	return nil
 }
 
-// LPTokenPrice returns the current price of the protocol's LP token in USD
+// LPTokenPrice returns the current price of the protocol's LP token in USD.
+//
+// Legacy path — issues sequential eth_calls (3 per variant). The batchable
+// path (PriceReads + ComputePrice) dispatches them as one
+// Multicall3.aggregate3. Both paths share computeLPPriceFromReads so
+// prices match for the same inputs.
 func (b *BeraBorrowLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
 	opts := &bind.CallOpts{
 		Context:     ctx,
 		BlockNumber: b.block,
+	}
+
+	// returns a *big.Int for total supply of the LP token
+	lpTotalSupply, err := b.lptContract.TotalSupply(opts)
+	if err != nil {
+		return "", fmt.Errorf("failed to get beraborrow total supply, err: %w", err)
 	}
 
 	tvl, err := b.getTotalValue(ctx)
@@ -113,10 +142,179 @@ func (b *BeraBorrowLPPriceProvider) LPTokenPrice(ctx context.Context) (string, e
 		return "", err
 	}
 
-	// returns a *big.Int for total supply of the LP token
-	lpTotalSupply, err := b.lptContract.TotalSupply(opts)
+	price, err := b.computeLPPriceFromReads(lpTotalSupply, tvl)
 	if err != nil {
-		return "", fmt.Errorf("failed to get beraborrow total supply, err: %w", err)
+		return "", err
+	}
+	return price.StringFixed(roundingDecimals), nil
+}
+
+// PriceReads describes the eth_calls needed to compute the LP token price.
+// Returns 3 calls in both variants:
+//   - sNECT: lptContract.TotalSupply, snectContract.GetPrice(asset), snectContract.TotalAssets
+//   - CICV:  lptContract.TotalSupply, cdpContract.FetchPrice,       cdpContract.TotalSupply
+func (b *BeraBorrowLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	iwABI, err := sc.BeraBorrowIWMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("beraborrow: get IW ABI: %w", err)
+	}
+	lpTotalSupplyData, err := iwABI.Pack("totalSupply")
+	if err != nil {
+		return nil, fmt.Errorf("beraborrow: pack IW totalSupply: %w", err)
+	}
+
+	if b.config.ColVaultAddress == sNECTName {
+		snectABI, err := sc.BeraBorrowSNECTMetaData.GetAbi()
+		if err != nil {
+			return nil, fmt.Errorf("beraborrow: get sNECT ABI: %w", err)
+		}
+		getPriceData, err := snectABI.Pack("getPrice", b.snectAsset)
+		if err != nil {
+			return nil, fmt.Errorf("beraborrow: pack sNECT getPrice: %w", err)
+		}
+		totalAssetsData, err := snectABI.Pack("totalAssets")
+		if err != nil {
+			return nil, fmt.Errorf("beraborrow: pack sNECT totalAssets: %w", err)
+		}
+		return []multicall3.Call3{
+			{Target: b.LPTAddress, AllowFailure: true, CallData: lpTotalSupplyData},
+			{Target: b.LPTAddress, AllowFailure: true, CallData: getPriceData},    // sNECT is at LPTAddress
+			{Target: b.LPTAddress, AllowFailure: true, CallData: totalAssetsData}, // sNECT is at LPTAddress
+		}, nil
+	}
+
+	// CICV variant
+	cicvABI, err := sc.BeraBorrowCICVMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("beraborrow: get CICV ABI: %w", err)
+	}
+	fetchPriceData, err := cicvABI.Pack("fetchPrice")
+	if err != nil {
+		return nil, fmt.Errorf("beraborrow: pack CICV fetchPrice: %w", err)
+	}
+	cdpTotalSupplyData, err := cicvABI.Pack("totalSupply")
+	if err != nil {
+		return nil, fmt.Errorf("beraborrow: pack CICV totalSupply: %w", err)
+	}
+	cicvAddress := common.HexToAddress(b.config.ColVaultAddress)
+	return []multicall3.Call3{
+		{Target: b.LPTAddress, AllowFailure: true, CallData: lpTotalSupplyData},
+		{Target: cicvAddress, AllowFailure: true, CallData: fetchPriceData},
+		{Target: cicvAddress, AllowFailure: true, CallData: cdpTotalSupplyData},
+	}, nil
+}
+
+// ComputePrice decodes the responses from PriceReads and computes the LP
+// token price. Variant-aware: differs between sNECT and CICV per the
+// variant taken in Initialize.
+func (b *BeraBorrowLPPriceProvider) ComputePrice(responses []multicall3.Result3) (decimal.Decimal, error) {
+	if len(responses) != 3 {
+		return decimal.Zero, fmt.Errorf("beraborrow: expected 3 responses, got %d", len(responses))
+	}
+	for i, r := range responses {
+		if !r.Success {
+			return decimal.Zero, fmt.Errorf("beraborrow: sub-call %d reverted in multicall", i)
+		}
+	}
+
+	// First response is the LP totalSupply (same for both variants).
+	iwABI, err := sc.BeraBorrowIWMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("beraborrow: get IW ABI: %w", err)
+	}
+	tsOut, err := iwABI.Methods["totalSupply"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("beraborrow: unpack IW totalSupply: %w", err)
+	}
+	lpTotalSupply, ok := tsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("beraborrow: IW totalSupply value type %T, want *big.Int", tsOut[0])
+	}
+
+	// Compute TVL from the variant-specific responses.
+	var tvl decimal.Decimal
+	if b.config.ColVaultAddress == sNECTName {
+		tvl, err = b.computeSNECTTotalValue(responses[1:])
+	} else {
+		tvl, err = b.computeCICVTotalValue(responses[1:])
+	}
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	return b.computeLPPriceFromReads(lpTotalSupply, tvl)
+}
+
+// computeSNECTTotalValue decodes the sNECT-variant responses (GetPrice +
+// TotalAssets) and computes the TVL.
+func (b *BeraBorrowLPPriceProvider) computeSNECTTotalValue(responses []multicall3.Result3) (decimal.Decimal, error) {
+	snectABI, err := sc.BeraBorrowSNECTMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("beraborrow: get sNECT ABI: %w", err)
+	}
+
+	priceOut, err := snectABI.Methods["getPrice"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("beraborrow: unpack sNECT getPrice: %w", err)
+	}
+	pricePerToken18, ok := priceOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("beraborrow: sNECT price value type %T, want *big.Int", priceOut[0])
+	}
+	pricePerToken := NormalizeAmount(pricePerToken18, USDPriceDecimals)
+
+	assetsOut, err := snectABI.Methods["totalAssets"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("beraborrow: unpack sNECT totalAssets: %w", err)
+	}
+	totalAssets, ok := assetsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("beraborrow: sNECT totalAssets value type %T, want *big.Int", assetsOut[0])
+	}
+	numTokens := NormalizeAmount(totalAssets, b.config.CDPDecimals)
+
+	return numTokens.Mul(pricePerToken), nil
+}
+
+// computeCICVTotalValue decodes the CICV-variant responses (FetchPrice +
+// TotalSupply) and computes the TVL.
+func (b *BeraBorrowLPPriceProvider) computeCICVTotalValue(responses []multicall3.Result3) (decimal.Decimal, error) {
+	cicvABI, err := sc.BeraBorrowCICVMetaData.GetAbi()
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("beraborrow: get CICV ABI: %w", err)
+	}
+
+	priceOut, err := cicvABI.Methods["fetchPrice"].Outputs.Unpack(responses[0].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("beraborrow: unpack CICV fetchPrice: %w", err)
+	}
+	pricePerToken18, ok := priceOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("beraborrow: CICV price value type %T, want *big.Int", priceOut[0])
+	}
+	pricePerToken := NormalizeAmount(pricePerToken18, USDPriceDecimals)
+
+	tsOut, err := cicvABI.Methods["totalSupply"].Outputs.Unpack(responses[1].ReturnData)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("beraborrow: unpack CICV totalSupply: %w", err)
+	}
+	cdpTotalSupply, ok := tsOut[0].(*big.Int)
+	if !ok {
+		return decimal.Zero, fmt.Errorf("beraborrow: CICV totalSupply value type %T, want *big.Int", tsOut[0])
+	}
+	numTokens := NormalizeAmount(cdpTotalSupply, b.config.CDPDecimals)
+
+	return numTokens.Mul(pricePerToken), nil
+}
+
+// computeLPPriceFromReads is the shared math between legacy LPTokenPrice
+// and batchable ComputePrice. Takes the LP totalSupply and the computed
+// TVL (which differs by variant), returns price per LP token.
+func (b *BeraBorrowLPPriceProvider) computeLPPriceFromReads(lpTotalSupply *big.Int, tvl decimal.Decimal) (decimal.Decimal, error) {
+	if lpTotalSupply.Sign() == 0 {
+		err := errors.New("LP totalSupply is zero, cannot calculate LP token price")
+		b.logger.Error().Err(err).Msg("Invalid totalSupply")
+		return decimal.Zero, err
 	}
 	numTokens := NormalizeAmount(lpTotalSupply, b.config.LPTDecimals)
 	pricePerToken := tvl.Div(numTokens)
@@ -125,7 +323,7 @@ func (b *BeraBorrowLPPriceProvider) LPTokenPrice(ctx context.Context) (string, e
 		Str("pricePerToken", pricePerToken.String()).
 		Msg("LP token price calculated successfully")
 
-	return pricePerToken.StringFixed(roundingDecimals), nil
+	return pricePerToken, nil
 }
 
 // TVL returns the Total Value Locked in the CDP in USD

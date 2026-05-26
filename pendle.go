@@ -7,10 +7,12 @@ import (
 	"math/big"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/internal/sc"
+	"github.com/infrared-dao/protocols/multicall3"
 
 	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
@@ -34,18 +36,25 @@ const (
 )
 
 var _ Protocol = &PendleLPPriceProvider{}
+var _ BatchablePriceProvider = &PendleLPPriceProvider{}
 
 type PendleConfig struct {
 	PoolAddress string `json:"pool_address"`
 }
 
 // PendleLPPriceProvider defines the provider for Pendle wrapped LP price and TVL.
+//
+// Concurrency: getSupplyAndTVL holds cacheMu for the read+(maybe-write)
+// of cacheResult/cacheTime. Without this lock, sulaco's overlapping price
+// cycles could race on the cache when it expires between calls — caught
+// by the cmd/test/batch_vs_legacy Phase 6 race detector run.
 type PendleLPPriceProvider struct {
 	address     common.Address
 	logger      zerolog.Logger
 	configBytes []byte
 	config      *PendleConfig
 	endpoint    string
+	cacheMu     sync.Mutex
 	cacheResult PendlePoolCurrentState
 	cacheTime   time.Time
 	httpClient  fetchers.HttpClient
@@ -79,26 +88,41 @@ func (p *PendleLPPriceProvider) Initialize(ctx context.Context, client bind.Cont
 }
 
 func (p *PendleLPPriceProvider) LPTokenPrice(ctx context.Context) (string, error) {
-	supply, tvl, err := p.getSupplyAndTVL(ctx)
+	price, err := p.computeLPPriceFromReads(ctx)
 	if err != nil {
 		return "", err
 	}
+	return price.StringFixed(roundingDecimals), nil
+}
 
+// PriceReads / ComputePrice — Pendle prices come from an off-chain HTTP
+// endpoint (api-v2.pendle.finance), not Multicall3. Implementing
+// BatchablePriceProvider with zero reads keeps the dispatch path uniform;
+// ComputePrice does the HTTP fetch (cached for 5s upstream — see
+// getSupplyAndTVL). Because the batch dispatcher does not propagate a
+// context to ComputePrice, the HTTP fetch falls back to context.Background;
+// callers that need a richer context should invoke LPTokenPrice directly.
+func (p *PendleLPPriceProvider) PriceReads() ([]multicall3.Call3, error) {
+	return nil, nil
+}
+
+func (p *PendleLPPriceProvider) ComputePrice(_ []multicall3.Result3) (decimal.Decimal, error) {
+	return p.computeLPPriceFromReads(context.Background())
+}
+
+func (p *PendleLPPriceProvider) computeLPPriceFromReads(ctx context.Context) (decimal.Decimal, error) {
+	supply, tvl, err := p.getSupplyAndTVL(ctx)
+	if err != nil {
+		return decimal.Zero, err
+	}
 	if supply.Cmp(decimal.Zero) == 0 {
 		err = fmt.Errorf("total supply is zero")
 		p.logger.Error().Err(err).Msg("failed to fetch total supply and tvl")
-		return "", err
+		return decimal.Zero, err
 	}
-
 	price := tvl.Div(supply)
-
-	p.logger.Debug().
-		Str("totalValue", tvl.String()).
-		Str("totalSupply", supply.String()).
-		Str("pricePerToken", price.String()).
-		Msg("LP token price calculated successfully")
-
-	return price.StringFixed(roundingDecimals), nil
+	p.logger.Debug().Str("pricePerToken", price.String()).Msg("LP token price calculated successfully")
+	return price, nil
 }
 
 func (p *PendleLPPriceProvider) TVL(ctx context.Context) (string, error) {
@@ -161,10 +185,17 @@ type PendlePoolCurrentState struct {
 	Supply float64 `json:"totalLp"`
 }
 
-// tvl fetches the TVL from the Pendle smart contract.
+// getSupplyAndTVL fetches TVL+supply from Pendle's V2 API, with a 5-second
+// in-process cache. The cache (cacheResult/cacheTime) is guarded by
+// cacheMu so concurrent callers (e.g. overlapping BatchLPTokenPrice
+// dispatches that all happen to hit pendle at once) can't race on the
+// fields, and so the HTTP fetch on cache miss is single-flighted instead
+// of stampeding the upstream API with 10 simultaneous requests.
 func (p *PendleLPPriceProvider) getSupplyAndTVL(ctx context.Context) (decimal.Decimal, decimal.Decimal, error) {
-	var results PendlePoolCurrentState
+	p.cacheMu.Lock()
+	defer p.cacheMu.Unlock()
 
+	var results PendlePoolCurrentState
 	now := time.Now()
 	secSinceLast := now.Sub(p.cacheTime).Seconds()
 
