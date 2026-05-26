@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -599,6 +600,121 @@ func main() {
 	fmt.Printf("\n%d/%d passed at scale N=%d\n", len(scaleResults)-scaleFails, len(scaleResults), len(scaleResults))
 
 	totalFails := fails + multiFails + mbFails + scaleFails
+
+	// === Phase 6: concurrent batch dispatch ===
+	// Fire M goroutines, each running BatchLPTokenPrice against the SAME
+	// shared provider instances at the same block. Verifies (a) no data
+	// races (run with `go run -race`), (b) every goroutine produces
+	// identical results to the Phase 1 baseline. Sulaco's price collector
+	// can issue overlapping cycles, so this models the worst-case
+	// concurrent-read pattern against the migrated providers.
+	//
+	// Builds a FRESH set of provider instances for this phase rather than
+	// reusing the Phase-1 ones, so any provider with first-call mutable
+	// state (e.g. pendle's HTTP cache) starts cold and the race detector
+	// has the best chance of catching concurrent writes. We also coordinate
+	// goroutine start via a barrier channel so they hit the dispatch code
+	// at roughly the same instant rather than serialising on goroutine
+	// startup.
+	const concurrency = 10
+	fmt.Printf("Phase 6: concurrent batch dispatch (%d goroutines, each N=%d, fresh providers, barrier-synced start)\n", concurrency, len(rows))
+
+	freshQueries := make([]protocols.BatchPriceQuery, 0, len(rows))
+	freshBaselines := make([]string, 0, len(rows)) // each query's expected price (matches rows[].batched)
+	for _, r := range rows {
+		if r.provBatch == nil {
+			continue
+		}
+		// Look up the testCase by name to rebuild from scratch.
+		var tc testCase
+		for _, candidate := range cases {
+			if candidate.name == r.name {
+				tc = candidate
+				break
+			}
+		}
+		// Fetch config and initialize a fresh provider — same flow as
+		// runCase but skipping the legacy/batched comparison.
+		cfg, err := tc.configure(ctx, tc.address, client)
+		if err != nil {
+			fmt.Printf("  Phase 6 config fetch failed for %s: %v\n", r.name, err)
+			continue
+		}
+		prices := map[string]protocols.Price{}
+		one, _ := decimal.NewFromString("1.0")
+		for _, addr := range addressRE.FindAllString(string(cfg), -1) {
+			prices[strings.ToLower(addr)] = protocols.Price{Decimals: 18, Price: one}
+		}
+		for _, addr := range commonBerachainTokens {
+			prices[strings.ToLower(addr)] = protocols.Price{Decimals: 18, Price: one}
+		}
+		prices[strings.ToLower(tc.address)] = protocols.Price{Decimals: 18, Price: one}
+		fresh := tc.build(common.HexToAddress(tc.address), block, prices, logger, cfg, client)
+		if err := fresh.Initialize(ctx, client, thc); err != nil {
+			fmt.Printf("  Phase 6 init failed for %s: %v\n", r.name, err)
+			continue
+		}
+		freshQueries = append(freshQueries, protocols.BatchPriceQuery{Provider: fresh, BlockNumber: block})
+		freshBaselines = append(freshBaselines, r.batched)
+	}
+
+	var (
+		wg               sync.WaitGroup
+		concResults      = make([][]protocols.BatchPriceResult, concurrency)
+		concTopLevelErrs = make([]error, concurrency)
+		startBarrier     = make(chan struct{})
+	)
+	wg.Add(concurrency)
+	for g := 0; g < concurrency; g++ {
+		go func(idx int) {
+			defer wg.Done()
+			<-startBarrier // wait until every goroutine is parked
+			res, err := protocols.BatchLPTokenPrice(ctx, mc, client, thc, freshQueries)
+			concResults[idx] = res
+			concTopLevelErrs[idx] = err
+		}(g)
+	}
+	close(startBarrier) // release all goroutines simultaneously
+	wg.Wait()
+
+	concFails := 0
+	for g := 0; g < concurrency; g++ {
+		if concTopLevelErrs[g] != nil {
+			fmt.Printf("  goroutine %d top-level err: %v\n", g, concTopLevelErrs[g])
+			concFails++
+			continue
+		}
+		if len(concResults[g]) != len(freshQueries) {
+			fmt.Printf("  goroutine %d returned %d results, want %d\n", g, len(concResults[g]), len(freshQueries))
+			concFails++
+			continue
+		}
+		// Compare each goroutine's result against the Phase-1 baseline.
+		// Any divergence here means the shared provider state got
+		// perturbed across concurrent calls.
+		for i, res := range concResults[g] {
+			baseline := freshBaselines[i]
+			var got string
+			if res.Err != nil {
+				got = "<reverted>"
+			} else {
+				got = res.Price.StringFixed(8)
+			}
+			var match bool
+			if baseline == "<both reverted>" {
+				match = res.Err != nil
+			} else {
+				match = res.Err == nil && got == baseline
+			}
+			if !match {
+				concFails++
+				fmt.Printf("  MISMATCH goroutine=%d, query[%d]: Phase-1=%s, concurrent=%s, err=%v\n", g, i, baseline, got, res.Err)
+			}
+		}
+	}
+	totalConcResults := concurrency * len(freshQueries)
+	fmt.Printf("\n%d/%d concurrent results match Phase-1 baseline (across %d goroutines)\n\n", totalConcResults-concFails, totalConcResults, concurrency)
+	totalFails += concFails
 
 	// === Phase 5: production-vault pre-flight (optional) ===
 	// When --vaults is supplied, iterate every vault in the production

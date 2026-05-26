@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/infrared-dao/protocols/fetchers"
@@ -42,12 +43,18 @@ type PendleConfig struct {
 }
 
 // PendleLPPriceProvider defines the provider for Pendle wrapped LP price and TVL.
+//
+// Concurrency: getSupplyAndTVL holds cacheMu for the read+(maybe-write)
+// of cacheResult/cacheTime. Without this lock, sulaco's overlapping price
+// cycles could race on the cache when it expires between calls — caught
+// by the cmd/test/batch_vs_legacy Phase 6 race detector run.
 type PendleLPPriceProvider struct {
 	address     common.Address
 	logger      zerolog.Logger
 	configBytes []byte
 	config      *PendleConfig
 	endpoint    string
+	cacheMu     sync.Mutex
 	cacheResult PendlePoolCurrentState
 	cacheTime   time.Time
 	httpClient  fetchers.HttpClient
@@ -178,10 +185,17 @@ type PendlePoolCurrentState struct {
 	Supply float64 `json:"totalLp"`
 }
 
-// tvl fetches the TVL from the Pendle smart contract.
+// getSupplyAndTVL fetches TVL+supply from Pendle's V2 API, with a 5-second
+// in-process cache. The cache (cacheResult/cacheTime) is guarded by
+// cacheMu so concurrent callers (e.g. overlapping BatchLPTokenPrice
+// dispatches that all happen to hit pendle at once) can't race on the
+// fields, and so the HTTP fetch on cache miss is single-flighted instead
+// of stampeding the upstream API with 10 simultaneous requests.
 func (p *PendleLPPriceProvider) getSupplyAndTVL(ctx context.Context) (decimal.Decimal, decimal.Decimal, error) {
-	var results PendlePoolCurrentState
+	p.cacheMu.Lock()
+	defer p.cacheMu.Unlock()
 
+	var results PendlePoolCurrentState
 	now := time.Now()
 	secSinceLast := now.Sub(p.cacheTime).Seconds()
 
