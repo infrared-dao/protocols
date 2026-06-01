@@ -8,10 +8,34 @@ import (
 	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/shopspring/decimal"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/multicall3"
 )
+
+// defaultLegacyParallelism caps concurrent legacy fan-out goroutines when
+// the caller doesn't override via [BatchOptions.LegacyParallelism]. Tuned
+// down from 8 to 4 (2026-06-01) so non-batchable providers cannot dominate
+// a strict-cap RPC provider (e.g. Chainstack Pro at 400 method/s) during a
+// price-tick burst.
+const defaultLegacyParallelism = 4
+
+// BatchOptions tunes the dispatch behavior of
+// [BatchLPTokenPriceWithOptions]. All fields are optional; the zero value
+// is what [BatchLPTokenPrice] uses.
+type BatchOptions struct {
+	// Limiter, when non-nil, gates each RPC dispatch: one token per
+	// Multicall3.aggregate3 invocation in the batched path, and one token
+	// before each legacy fan-out goroutine's LPTokenPrice call. Share the
+	// same limiter instance across calls for a process-wide cap; a fresh
+	// limiter per invocation only smooths an in-flight burst.
+	Limiter *rate.Limiter
+
+	// LegacyParallelism overrides the cap on concurrent legacy fan-out
+	// goroutines. Values <= 0 use defaultLegacyParallelism.
+	LegacyParallelism int
+}
 
 // BatchablePriceProvider is an opt-in extension of [Protocol] that
 // decomposes LP-price computation into a declarative reads-list builder
@@ -99,6 +123,19 @@ func BatchLPTokenPrice(
 	legacyHTTPClient fetchers.HttpClient,
 	queries []BatchPriceQuery,
 ) ([]BatchPriceResult, error) {
+	return BatchLPTokenPriceWithOptions(ctx, multicall, legacyClient, legacyHTTPClient, queries, BatchOptions{})
+}
+
+// BatchLPTokenPriceWithOptions is the configurable variant of
+// [BatchLPTokenPrice]. See [BatchOptions] for tunables.
+func BatchLPTokenPriceWithOptions(
+	ctx context.Context,
+	multicall multicall3Caller,
+	legacyClient bind.ContractBackend,
+	legacyHTTPClient fetchers.HttpClient,
+	queries []BatchPriceQuery,
+	opts BatchOptions,
+) ([]BatchPriceResult, error) {
 	if multicall == nil {
 		return nil, fmt.Errorf("BatchLPTokenPrice: multicall must not be nil")
 	}
@@ -125,6 +162,14 @@ func BatchLPTokenPrice(
 
 	// Dispatch the batched path: one aggregate3 per block partition.
 	for _, indices := range batchableByBlock {
+		if opts.Limiter != nil {
+			if err := opts.Limiter.Wait(ctx); err != nil {
+				for _, idx := range indices {
+					results[idx] = BatchPriceResult{Err: fmt.Errorf("rate limiter wait: %w", err)}
+				}
+				continue
+			}
+		}
 		dispatchBatch(ctx, multicall, queries, indices, results)
 	}
 
@@ -132,11 +177,20 @@ func BatchLPTokenPrice(
 	// existing LPTokenPrice synchronously; errgroup just parallelises them
 	// up to a sane cap so a long tail doesn't dominate wall-clock time.
 	if len(nonBatchable) > 0 {
-		const legacyParallelism = 8
+		legacyCap := defaultLegacyParallelism
+		if opts.LegacyParallelism > 0 {
+			legacyCap = opts.LegacyParallelism
+		}
 		eg, egCtx := errgroup.WithContext(ctx)
-		eg.SetLimit(legacyParallelism)
+		eg.SetLimit(legacyCap)
 		for _, i := range nonBatchable {
 			eg.Go(func() error {
+				if opts.Limiter != nil {
+					if err := opts.Limiter.Wait(egCtx); err != nil {
+						results[i] = BatchPriceResult{Err: fmt.Errorf("rate limiter wait: %w", err)}
+						return nil
+					}
+				}
 				results[i] = runLegacyPriceQuery(egCtx, queries[i])
 				return nil
 			})

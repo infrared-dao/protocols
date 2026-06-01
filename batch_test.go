@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
+	"golang.org/x/time/rate"
 
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/multicall3"
@@ -55,9 +58,9 @@ func (f *fakeBatchable) Initialize(context.Context, bind.ContractBackend, fetche
 func (f *fakeBatchable) LPTokenPrice(context.Context) (string, error) {
 	return f.legacyPrice, f.legacyErr
 }
-func (f *fakeBatchable) TVL(context.Context) (string, error)                  { return "", nil }
+func (f *fakeBatchable) TVL(context.Context) (string, error)                       { return "", nil }
 func (f *fakeBatchable) TVLBreakdown(context.Context) (map[string]TokenTVL, error) { return nil, nil }
-func (f *fakeBatchable) UpdateBlock(*big.Int, map[string]Price)               {}
+func (f *fakeBatchable) UpdateBlock(*big.Int, map[string]Price)                    {}
 
 // BatchablePriceProvider extension:
 func (f *fakeBatchable) PriceReads() ([]multicall3.Call3, error) { return f.reads, nil }
@@ -78,10 +81,10 @@ func (f *fakeLegacy) GetConfig(context.Context, string, bind.ContractBackend) ([
 func (f *fakeLegacy) Initialize(context.Context, bind.ContractBackend, fetchers.HttpClient) error {
 	return nil
 }
-func (f *fakeLegacy) LPTokenPrice(context.Context) (string, error)            { return f.price, f.err }
-func (f *fakeLegacy) TVL(context.Context) (string, error)                     { return "", nil }
+func (f *fakeLegacy) LPTokenPrice(context.Context) (string, error)              { return f.price, f.err }
+func (f *fakeLegacy) TVL(context.Context) (string, error)                       { return "", nil }
 func (f *fakeLegacy) TVLBreakdown(context.Context) (map[string]TokenTVL, error) { return nil, nil }
-func (f *fakeLegacy) UpdateBlock(*big.Int, map[string]Price)                  {}
+func (f *fakeLegacy) UpdateBlock(*big.Int, map[string]Price)                    {}
 
 func TestBatchLPTokenPrice_RejectsNilMulticall(t *testing.T) {
 	t.Parallel()
@@ -324,6 +327,115 @@ func TestBatchLPTokenPrice_ZeroReadPartitionStillComputes(t *testing.T) {
 		t.Errorf("results[1].Price = %v, want 11", results[1].Price)
 	}
 }
+
+// BatchOptions.LegacyParallelism must cap concurrent legacy goroutines.
+// With LegacyParallelism=1, peak observed in-flight count for N>1 legacy
+// providers must be exactly 1.
+func TestBatchLPTokenPriceWithOptions_LegacyParallelism(t *testing.T) {
+	t.Parallel()
+
+	var inFlight, peak int64
+	gate := make(chan struct{})
+
+	slowImpl := func(_ context.Context) (string, error) {
+		cur := atomic.AddInt64(&inFlight, 1)
+		for {
+			p := atomic.LoadInt64(&peak)
+			if cur <= p || atomic.CompareAndSwapInt64(&peak, p, cur) {
+				break
+			}
+		}
+		<-gate
+		atomic.AddInt64(&inFlight, -1)
+		return "1", nil
+	}
+
+	const n = 4
+	queries := make([]BatchPriceQuery, n)
+	for i := range queries {
+		queries[i] = BatchPriceQuery{Provider: &gatedLegacy{run: slowImpl}}
+	}
+
+	go func() {
+		// Brief wait so the dispatcher launches and parks the first
+		// goroutine on <-gate before we release them all at once.
+		time.Sleep(50 * time.Millisecond)
+		close(gate)
+	}()
+
+	results, err := BatchLPTokenPriceWithOptions(
+		context.Background(),
+		&fakeMulticall{},
+		nil, nil,
+		queries,
+		BatchOptions{LegacyParallelism: 1},
+	)
+	if err != nil {
+		t.Fatalf("BatchLPTokenPriceWithOptions: %v", err)
+	}
+	if len(results) != n {
+		t.Fatalf("len(results) = %d, want %d", len(results), n)
+	}
+	if got := atomic.LoadInt64(&peak); got != 1 {
+		t.Errorf("peak in-flight = %d, want 1 (LegacyParallelism=1)", got)
+	}
+}
+
+// BatchOptions.Limiter that's already been drained (and a context that
+// times out before the limiter refills) must surface as a per-query error
+// rather than blocking indefinitely.
+func TestBatchLPTokenPriceWithOptions_LimiterRespectsContext(t *testing.T) {
+	t.Parallel()
+
+	// One token total, infinitely slow refill: the first dispatch consumes
+	// the burst budget; subsequent waits must hit ctx deadline.
+	lim := rate.NewLimiter(rate.Limit(0.01), 1)
+	_ = lim.Allow() // drain the burst budget
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	p1 := &fakeBatchable{
+		reads:         []multicall3.Call3{{Target: common.Address{1}, CallData: []byte{1}}},
+		priceFromResp: func([]multicall3.Result3) (decimal.Decimal, error) { return decimal.NewFromInt(1), nil },
+	}
+
+	mc := &fakeMulticall{
+		respFn: func(calls []multicall3.Call3) ([]multicall3.Result3, error) {
+			return []multicall3.Result3{{Success: true}}, nil
+		},
+	}
+
+	results, err := BatchLPTokenPriceWithOptions(
+		ctx, mc, nil, nil,
+		[]BatchPriceQuery{{Provider: p1}},
+		BatchOptions{Limiter: lim},
+	)
+	if err != nil {
+		t.Fatalf("BatchLPTokenPriceWithOptions: %v", err)
+	}
+	if results[0].Err == nil {
+		t.Errorf("expected per-query err when limiter blocks past ctx deadline, got nil")
+	}
+}
+
+// gatedLegacy is a Protocol that delegates LPTokenPrice to a caller-supplied
+// func. Used by the LegacyParallelism test to observe in-flight goroutine
+// counts.
+type gatedLegacy struct {
+	run func(context.Context) (string, error)
+}
+
+func (g *gatedLegacy) GetConfig(context.Context, string, bind.ContractBackend) ([]byte, error) {
+	return nil, nil
+}
+func (g *gatedLegacy) Initialize(context.Context, bind.ContractBackend, fetchers.HttpClient) error {
+	return nil
+}
+func (g *gatedLegacy) LPTokenPrice(ctx context.Context) (string, error)          { return g.run(ctx) }
+func (g *gatedLegacy) TVL(context.Context) (string, error)                       { return "", nil }
+func (g *gatedLegacy) TVLBreakdown(context.Context) (map[string]TokenTVL, error) { return nil, nil }
+func (g *gatedLegacy) UpdateBlock(*big.Int, map[string]Price)                    {}
 
 // Suppress the unused-import warning in case zerolog is removed by a later
 // refactor — keep it referenced so the import block stays stable across
