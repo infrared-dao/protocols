@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
-	"golang.org/x/time/rate"
 
 	"github.com/infrared-dao/protocols/fetchers"
 	"github.com/infrared-dao/protocols/multicall3"
@@ -378,44 +377,6 @@ func TestBatchLPTokenPriceWithOptions_LegacyParallelism(t *testing.T) {
 	}
 	if got := atomic.LoadInt64(&peak); got != 1 {
 		t.Errorf("peak in-flight = %d, want 1 (LegacyParallelism=1)", got)
-	}
-}
-
-// BatchOptions.Limiter that's already been drained (and a context that
-// times out before the limiter refills) must surface as a per-query error
-// rather than blocking indefinitely.
-func TestBatchLPTokenPriceWithOptions_LimiterRespectsContext(t *testing.T) {
-	t.Parallel()
-
-	// One token total, infinitely slow refill: the first dispatch consumes
-	// the burst budget; subsequent waits must hit ctx deadline.
-	lim := rate.NewLimiter(rate.Limit(0.01), 1)
-	_ = lim.Allow() // drain the burst budget
-
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-
-	p1 := &fakeBatchable{
-		reads:         []multicall3.Call3{{Target: common.Address{1}, CallData: []byte{1}}},
-		priceFromResp: func([]multicall3.Result3) (decimal.Decimal, error) { return decimal.NewFromInt(1), nil },
-	}
-
-	mc := &fakeMulticall{
-		respFn: func(calls []multicall3.Call3) ([]multicall3.Result3, error) {
-			return []multicall3.Result3{{Success: true}}, nil
-		},
-	}
-
-	results, err := BatchLPTokenPriceWithOptions(
-		ctx, mc, nil, nil,
-		[]BatchPriceQuery{{Provider: p1}},
-		BatchOptions{Limiter: lim},
-	)
-	if err != nil {
-		t.Fatalf("BatchLPTokenPriceWithOptions: %v", err)
-	}
-	if results[0].Err == nil {
-		t.Errorf("expected per-query err when limiter blocks past ctx deadline, got nil")
 	}
 }
 
