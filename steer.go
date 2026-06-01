@@ -38,7 +38,6 @@ type SteerLPPriceProvider struct {
 	configBytes []byte
 	config      *SteerConfig
 	contract    *sc.SteerPool
-	httpClient  fetchers.HttpClient
 }
 
 // NewSteerLPPriceProvider creates a new instance of the SteerLPPriceProvider.

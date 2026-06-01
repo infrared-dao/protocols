@@ -313,17 +313,3 @@ func (e *EtherfiLPPriceProvider) getPrice(tokenKey string) (*Price, error) {
 	}
 	return &price, nil
 }
-
-// getTotalSupply fetches the total supply of the LP token.
-func (e *EtherfiLPPriceProvider) getTotalSupply(ctx context.Context) (*big.Int, error) {
-	opts := &bind.CallOpts{
-		Context:     ctx,
-		BlockNumber: e.block,
-	}
-	totalSupply, err := e.contract.TotalSupply(opts)
-	if err != nil {
-		e.logger.Error().Err(err).Msg("failed to fetch total supply")
-		return nil, err
-	}
-	return totalSupply, nil
-}
